@@ -789,6 +789,18 @@ Real OptionPreferences::getMoneyTransactionVolume() const
 	return volume;
 }
 
+// FORK @feature 08/10/2026 Per-player build cap in load points that this PC uses when it hosts a game.
+// Set "LoadCap = 600" in Options.ini on the host; 0 or missing = no cap. Every player receives the host's value.
+UnsignedInt OptionPreferences::getLoadCap()
+{
+	OptionPreferences::const_iterator it = find("LoadCap");
+	if (it == end())
+		return 0;
+
+	const Int loadCap = atoi(it->second.str());
+	return loadCap > 0 ? (UnsignedInt)loadCap : 0;
+}
+
 Int OptionPreferences::getNetworkLatencyFontSize()
 {
 	OptionPreferences::const_iterator it = find("NetworkLatencyFontSize");

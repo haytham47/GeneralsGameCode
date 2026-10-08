@@ -198,6 +198,8 @@ public:
 
   inline UnsignedShort getSuperweaponRestriction() const; ///< Get any optional limits on superweapons
   void setSuperweaponRestriction( UnsignedShort restriction ); ///< Set the optional limits on superweapons
+  UnsignedInt getLoadCap() const { return m_loadCap; } ///< FORK per-player build cap in load points (0 = off)
+  void setLoadCap( UnsignedInt loadCap ) { m_loadCap = loadCap; } ///< FORK
   inline const Money & getStartingCash() const;
   void setStartingCash( const Money & startingCash );
 
@@ -252,6 +254,7 @@ protected:
 	Int m_useStats;
   Money         m_startingCash;
   UnsignedShort m_superweaponRestriction;
+  UnsignedInt m_loadCap; ///< FORK per-player build cap in load points (0 = off)
   Bool m_oldFactionsOnly; // Only USA, China, GLA -- not USA Air Force General, GLA Toxic General, et al
 };
 

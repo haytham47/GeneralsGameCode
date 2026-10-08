@@ -479,6 +479,7 @@ void GameLogic::reset()
 	TheWeatherSetting = (WeatherSetting*) ws->deleteOverrides();
 
 	m_rankPointsToAddAtGameStart = 0;
+	m_loadCap = 0;
 }
 
 static Object * placeObjectAtPosition(Int slotNum, AsciiString objectTemplateName, Coord3D& pos, Player *pPlayer,
@@ -1258,6 +1259,10 @@ void GameLogic::tryStartNewGame( Bool loadingSaveGame )
   // On a NEW game, we need to copy the superweapon restrictions from the game info to here
   // (because TheGameInfo is not always saved and doesn't carry over to replays). On a save
   // game, we save the superweapon restrictions in GameLogic::xfer()
+  // FORK @feature 08/10/2026 The per-player build cap comes from the game options (LAN, skirmish, replay header).
+  // It is not saved in save games, so a loaded save plays without a cap.
+  m_loadCap = ( !loadingSaveGame && TheGameInfo ) ? TheGameInfo->getLoadCap() : 0;
+
   if ( !loadingSaveGame )
   {
     if ( TheGameInfo )

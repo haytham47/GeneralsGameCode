@@ -232,6 +232,7 @@ public:
 	Int getRankPointsToAddAtGameStart() const { return m_rankPointsToAddAtGameStart; }
 
   UnsignedShort getSuperweaponRestriction() const; ///< Get any optional limits on superweapons
+  UnsignedInt getLoadCap() const { return m_loadCap; } ///< FORK per-player build cap in load points (0 = off)
   void setSuperweaponRestriction();
 
 #ifdef DUMP_PERF_STATS
@@ -432,6 +433,7 @@ private:
 	GameMode m_gameMode;
 	Int m_rankLevelLimit;
   UnsignedShort m_superweaponRestriction;
+  UnsignedInt m_loadCap; ///< FORK per-player build cap in load points (0 = off), copied from the game options
 
 	LoadScreen *getLoadScreen( Bool loadSaveGame );
 	LoadScreen *m_loadScreen;

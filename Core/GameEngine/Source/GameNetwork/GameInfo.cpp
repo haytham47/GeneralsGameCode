@@ -317,6 +317,7 @@ void GameInfo::reset()
 	m_mapCRC = 0;
 	m_mapSize = 0;
   m_superweaponRestriction = 0;
+  m_loadCap = 0;
   m_startingCash = TheGlobalData->m_defaultStartingCash;
 
 	for (Int i=0; i<MAX_SLOTS; ++i)
@@ -993,6 +994,13 @@ static AsciiString buildGameInfoAsciiString(const GameInfo& game, const AsciiStr
 	optionsString.format("US=%d;M=%2.2x%s;MC=%X;MS=%d;SD=%d;C=%d;SR=%u;SC=%u;O=%c;", game.getUseStats(), game.getMapContentsMask(), newMapName.str(),
 		game.getMapCRC(), game.getMapSize(), game.getSeed(), game.getCRCInterval(), game.getSuperweaponRestriction(),
 		game.getStartingCash().countMoney(), game.oldFactionsOnly() ? 'Y' : 'N' );
+	// FORK @feature 08/10/2026 The per-player build cap travels with the game options (only when it is on).
+	if (game.getLoadCap() != 0)
+	{
+		AsciiString loadCapString;
+		loadCapString.format("LC=%u;", game.getLoadCap());
+		optionsString.concat(loadCapString);
+	}
 #endif
 
 	//add player info for each slot
@@ -1129,6 +1137,7 @@ Bool ParseAsciiStringToGameInfo(GameInfo *game, AsciiString options)
 	Bool sawSuperweaponRestriction = FALSE;
 	Bool sawStartingCash = FALSE;
 	Bool sawOldFactions = FALSE;
+	UnsignedInt loadCap = 0; // FORK build cap, off unless the options say otherwise
 
 	//DEBUG_LOG(("Saw options of %s", options.str()));
 	DEBUG_LOG(("ParseAsciiStringToGameInfo - parsing [%s]", options.str()));
@@ -1232,6 +1241,11 @@ Bool ParseAsciiStringToGameInfo(GameInfo *game, AsciiString options)
       startingCash.init();
       startingCash.deposit( startingCashAmount, FALSE, FALSE );
       sawStartingCash = TRUE;
+    }
+    else if (key.compare("LC") == 0 )
+    {
+      // FORK @feature 08/10/2026 Per-player build cap in load points.
+      loadCap = (UnsignedInt)strtoul( val.str(), nullptr, 10 );
     }
     else if (key.compare("O") == 0 )
     {
@@ -1604,6 +1618,7 @@ Bool ParseAsciiStringToGameInfo(GameInfo *game, AsciiString options)
 		game->setCRCInterval(crc);
 		game->setUseStats(useStats);
 		game->setSuperweaponRestriction(restriction);
+		game->setLoadCap(loadCap);
 		game->setStartingCash(startingCash);
 		game->setOldFactionsOnly(oldFactionsOnly);
 
