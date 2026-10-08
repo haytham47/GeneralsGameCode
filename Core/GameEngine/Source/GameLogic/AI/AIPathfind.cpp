@@ -1978,7 +1978,8 @@ Bool Pathfinder::queueForPath(ObjectID id)
 		nextSlot = 0;
 	}
 	if (nextSlot==m_queuePRHead) {
-		DEBUG_CRASH(("Ran out of pathfind queue slots."));
+		// FORK @tweak 08/10/2026 A full queue is now handled by retrying the request (AIUpdate), so only log it.
+		DEBUG_LOG(("Ran out of pathfind queue slots."));
 		// FORK @performance 08/10/2026 Counts dropped path requests for the -bench mode.
 		if (Bench::s_active)
 			Bench::addCounter(BENCHC_PATH_DROPPED, 1);
@@ -2319,7 +2320,7 @@ struct ExamineCellsStruct
 {
 	ExamineCellsStruct* d = (ExamineCellsStruct*)userData;
 	if (d->thePathfinder->m_isTunneling) return 1; // abort.
-	if (++d->cellCount > d->maxCells) return 1; // abort.
+	if (++d->cellCount > d->maxCells) return 1; // abort. FORK: the first callback counts too, so a cap of N walks about N-1 cells.
 	if (from && to) {
 			if (!d->thePathfinder->validMovementPosition( d->isCrusher, d->theLoco->getValidSurfaces(), to, from )) {
 				return 1;

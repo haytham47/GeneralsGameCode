@@ -193,10 +193,6 @@ Bool BenchScenario::parse(const char *path, AsciiString &error)
 			capTestFactory = colon + 1;
 			capTestFactory.trim();
 		}
-		else if (key.compareNoCase("experiment0") == 0) Bench::s_experiment[0] = atoi(value.str());
-		else if (key.compareNoCase("experiment1") == 0) Bench::s_experiment[1] = atoi(value.str());
-		else if (key.compareNoCase("experiment2") == 0) Bench::s_experiment[2] = atoi(value.str());
-		else if (key.compareNoCase("experiment3") == 0) Bench::s_experiment[3] = atoi(value.str());
 		else
 		{
 			error.format("line %d: unknown key '%s'", lineNo, key.str());

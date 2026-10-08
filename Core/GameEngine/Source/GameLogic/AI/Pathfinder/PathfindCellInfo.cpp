@@ -100,7 +100,7 @@ PathfindCellInfo *PathfindCellInfo::getACellInfo(PathfindCell *cell,const ICoord
 		info->m_obstacleIsFence = false;
 		info->m_obstacleIsTransparent = false;
 		info->m_blockedByAlly = false;
-		info->m_heapIndex = -1;
+		info->m_heapIndex = -1; // FORK @performance 08/10/2026 heap open list bookkeeping
 		info->m_openSerial = 0;
 	}
 	// FORK @performance 08/10/2026 Counts exhaustion of the pathfinder info pool for the -bench mode.

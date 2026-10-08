@@ -75,7 +75,6 @@ enum BenchSearchKind
 namespace Bench
 {
 	extern Bool s_active; ///< TRUE when the exe runs in -bench mode; all probes are no-ops otherwise
-	extern Int s_experiment[4]; ///< TEMPORARY experiment knobs set by scenario keys experiment0..3 (0 = normal behaviour)
 
 	void setScenario(const char *path);
 	const char *getScenario();

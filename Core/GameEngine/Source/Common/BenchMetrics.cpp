@@ -219,7 +219,6 @@ namespace
 namespace Bench
 {
 	Bool s_active = FALSE;
-	Int s_experiment[4] = { 0, 0, 0, 0 };
 
 	void setScenario(const char *path) { s_scenario = path ? path : ""; }
 	const char *getScenario() { return s_scenario.c_str(); }

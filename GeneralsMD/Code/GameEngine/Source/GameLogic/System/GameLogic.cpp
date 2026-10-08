@@ -248,7 +248,7 @@ GameLogic::GameLogic()
 	m_startNewGame = FALSE;
 	m_gameMode = GAME_NONE;
 	m_rankLevelLimit = 1000;
-	m_loadCap = 0;
+	m_loadCap = 0; // FORK @feature 08/10/2026 build cap off until a game starts
 	m_pauseFrame = 0;
 	m_gamePaused = FALSE;
 	m_pauseSound = FALSE;
@@ -480,7 +480,7 @@ void GameLogic::reset()
 	TheWeatherSetting = (WeatherSetting*) ws->deleteOverrides();
 
 	m_rankPointsToAddAtGameStart = 0;
-	m_loadCap = 0;
+	m_loadCap = 0; // FORK @feature 08/10/2026 build cap off between games
 }
 
 static Object * placeObjectAtPosition(Int slotNum, AsciiString objectTemplateName, Coord3D& pos, Player *pPlayer,

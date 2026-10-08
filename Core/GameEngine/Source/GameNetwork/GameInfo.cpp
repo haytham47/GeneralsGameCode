@@ -317,7 +317,7 @@ void GameInfo::reset()
 	m_mapCRC = 0;
 	m_mapSize = 0;
   m_superweaponRestriction = 0;
-  m_loadCap = 0;
+  m_loadCap = 0; // FORK @feature 08/10/2026 build cap off by default
   m_startingCash = TheGlobalData->m_defaultStartingCash;
 
 	for (Int i=0; i<MAX_SLOTS; ++i)
