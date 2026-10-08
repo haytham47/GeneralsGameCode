@@ -52,6 +52,9 @@ struct BenchScenario
 	Int maxLaneStructures;
 	Int startCash;
 	UnsignedInt crcEvery;
+	UnsignedInt loadCap;					///< per-player build cap passed in the game options (0 = off)
+	AsciiString capTestUnit;			///< capTest = <unit>:<factory>: checks the cap refuses that unit at the factory
+	AsciiString capTestFactory;
 	std::vector<AsciiString> slotFactions;
 	std::vector<BenchFactionSetup> factions;
 	std::vector<AsciiString> chokeWaypoints;

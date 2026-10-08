@@ -37,6 +37,7 @@
 #include "Common/ThingFactory.h"
 #include "Common/ThingTemplate.h"
 #include "GameClient/MapUtil.h"
+#include "GameClient/View.h"
 #include "GameLogic/AI.h"
 #include "GameLogic/AIPathfind.h"
 #include "GameLogic/GameLogic.h"
@@ -214,6 +215,7 @@ namespace
 		cash.deposit((UnsignedInt)s_scenario.startCash, FALSE, FALSE);
 		TheSkirmishGameInfo->setStartingCash(cash);
 		TheSkirmishGameInfo->setSuperweaponRestriction(0);
+		TheSkirmishGameInfo->setLoadCap(s_scenario.loadCap);
 		TheSkirmishGameInfo->setSeed((Int)s_scenario.seed);
 		TheSkirmishGameInfo->setMap(mapName);
 		TheSkirmishGameInfo->setMapCRC(md->m_CRC);
@@ -307,6 +309,69 @@ namespace
 		if (!tmpl)
 			return;
 		TheBuildAssistant->buildObjectNow(nullptr, tmpl, &pos, tmpl->getPlacementViewAngle(), player);
+	}
+
+	// Checks the per-player build cap on slot 0: below the cap the unit can be built, once the player's load reaches
+	// the cap both Player::canBuildMoreOfType and BuildAssistant::canMakeUnit (used by the control bar, the production
+	// queue, dozers and the AI) refuse it. Results go to summary.json (cap_test_ok = 1 when everything holds).
+	void runCapTest()
+	{
+		if (s_scenario.capTestUnit.isEmpty())
+			return;
+		Player *player = s_players[0];
+		const ThingTemplate *unit = TheThingFactory->findTemplate(s_scenario.capTestUnit);
+		const ThingTemplate *factoryTmpl = TheThingFactory->findTemplate(s_scenario.capTestFactory);
+		Object *factory = nullptr;
+		for (Object *obj = TheGameLogic->getFirstObject(); obj && factoryTmpl; obj = obj->getNextObject())
+		{
+			if (obj->getControllingPlayer() == player && obj->getTemplate()->isEquivalentTo(factoryTmpl) && !obj->isEffectivelyDead())
+			{
+				factory = obj;
+				break;
+			}
+		}
+		if (!unit || !factory)
+		{
+			Bench::setInfo("cap_test_error", !unit ? "unit template not found" : "factory not found for slot 0");
+			Bench::setInfoInt("cap_test_ok", 0);
+			return;
+		}
+
+		const Int cap = (Int)TheGameLogic->getLoadCap();
+		const Int loadBefore = player->getLoadPoints();
+		const Bool canBefore = player->canBuildMoreOfType(unit);
+		const CanMakeType makeBeforeType = TheBuildAssistant->canMakeUnit(factory, unit);
+		const Bool makeBefore = makeBeforeType == CANMAKE_OK;
+
+		// Fill the player up to the cap with directly spawned units (the driver bypasses the cap on purpose).
+		const Coord3D anchor = lerp(s_start[0], s_centre, 0.18f);
+		Int spawned = 0;
+		while (player->getLoadPoints() + unit->getLoadPoints() <= cap && spawned < 1000)
+		{
+			Coord3D pos;
+			pos.x = anchor.x + (Real)(spawned % 20) * 12.0f;
+			pos.y = anchor.y + (Real)(spawned / 20) * 12.0f;
+			pos.z = 0.0f;
+			if (!spawnUnit(player, unit, pos))
+				break;
+			++spawned;
+		}
+		const Int loadAtCap = player->getLoadPoints();
+		const Bool canAtCap = player->canBuildMoreOfType(unit);
+		const CanMakeType makeAtCap = TheBuildAssistant->canMakeUnit(factory, unit);
+
+		Bench::setInfoInt("cap_test_cap", cap);
+		Bench::setInfoInt("cap_test_unit_points", unit->getLoadPoints());
+		Bench::setInfoInt("cap_test_load_before", loadBefore);
+		Bench::setInfoInt("cap_test_can_build_before", canBefore ? 1 : 0);
+		Bench::setInfoInt("cap_test_can_make_before", (Int)makeBeforeType);
+		Bench::setInfoInt("cap_test_spawned", spawned);
+		Bench::setInfoInt("cap_test_load_at_cap", loadAtCap);
+		Bench::setInfoInt("cap_test_can_build_at_cap", canAtCap ? 1 : 0);
+		Bench::setInfoInt("cap_test_can_make_at_cap", (Int)makeAtCap);
+		const Bool ok = cap > 0 && canBefore && makeBefore && !canAtCap && makeAtCap == CANMAKE_MAXED_OUT_FOR_PLAYER
+			&& loadAtCap <= cap && loadAtCap + unit->getLoadPoints() > cap;
+		Bench::setInfoInt("cap_test_ok", ok ? 1 : 0);
 	}
 
 	void setup()
@@ -595,6 +660,10 @@ void BenchDriver::preLogicUpdate()
 
 	const UnsignedInt frame = TheGameLogic->getFrame();
 
+	// The cap test runs once the base structures placed at setup have finished their construction status.
+	if (frame == s_setupFrame + 60)
+		runCapTest();
+
 	if ((frame % s_scenario.waveEvery) == 0)
 	{
 		Int liveUnits[MAX_SLOTS];
@@ -611,6 +680,11 @@ void BenchDriver::preLogicUpdate()
 
 	if ((frame % s_scenario.structureEvery) == 0)
 		placeLaneStructures();
+
+	// Windowed runs keep the camera on the map centre, where the armies meet, so the render cost is measured
+	// on the battle. Client only: logic never reads the camera.
+	if (!TheGlobalData->m_headless && TheTacticalView && (frame % 150) == 0)
+		TheTacticalView->lookAt(&s_centre);
 }
 
 void BenchDriver::postLogicUpdate()

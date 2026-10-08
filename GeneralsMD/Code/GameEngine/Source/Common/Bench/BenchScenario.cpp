@@ -58,7 +58,8 @@ BenchScenario::BenchScenario() :
 	structureEvery(600),
 	maxLaneStructures(6),
 	startCash(100000),
-	crcEvery(300)
+	crcEvery(300),
+	loadCap(0)
 {
 }
 
@@ -177,6 +178,21 @@ Bool BenchScenario::parse(const char *path, AsciiString &error)
 		else if (key.compareNoCase("crcEvery") == 0) crcEvery = (UnsignedInt)atoi(value.str());
 		else if (key.compareNoCase("factions") == 0) splitList(value, slotFactions);
 		else if (key.compareNoCase("chokeWaypoints") == 0) splitList(value, chokeWaypoints);
+		else if (key.compareNoCase("loadCap") == 0) loadCap = (UnsignedInt)atoi(value.str());
+		else if (key.compareNoCase("capTest") == 0)
+		{
+			const char *colon = strchr(value.str(), ':');
+			if (!colon)
+			{
+				error.format("line %d: capTest = <unit>:<factory>", lineNo);
+				fclose(f);
+				return FALSE;
+			}
+			capTestUnit.set(value.str(), (Int)(colon - value.str()));
+			capTestUnit.trim();
+			capTestFactory = colon + 1;
+			capTestFactory.trim();
+		}
 		else if (key.compareNoCase("experiment0") == 0) Bench::s_experiment[0] = atoi(value.str());
 		else if (key.compareNoCase("experiment1") == 0) Bench::s_experiment[1] = atoi(value.str());
 		else if (key.compareNoCase("experiment2") == 0) Bench::s_experiment[2] = atoi(value.str());
