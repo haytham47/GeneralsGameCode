@@ -287,7 +287,8 @@ void LANAPI::handleRequestJoin( LANMessage *msg, UnsignedInt senderIP )
 			if (TheGlobalData->m_netMinPlayers > 0) {
 #endif
 // TheSuperHackers @todo Enable CRC checks!
-#if !RTS_ZEROHOUR
+// FORK @feature 08/10/2026 Denies LAN joins on exe or INI CRC mismatch in Zero Hour too, to prevent mid-game desyncs.
+#if 1
 			if (msg->GameToJoin.iniCRC != TheGlobalData->m_iniCRC ||
 					msg->GameToJoin.exeCRC != TheGlobalData->m_exeCRC)
 			{
@@ -295,6 +296,8 @@ void LANAPI::handleRequestJoin( LANMessage *msg, UnsignedInt senderIP )
 					msg->GameToJoin.iniCRC, TheGlobalData->m_iniCRC,
 					msg->GameToJoin.exeCRC, TheGlobalData->m_exeCRC));
 				reply.messageType = LANMessage::MSG_JOIN_DENY;
+				// FORK @bugfix 08/10/2026 Fills the game name so the joiner does not read an uninitialised buffer.
+				wcslcpy(reply.GameNotJoined.gameName, m_currentGame->getName().str(), ARRAY_SIZE(reply.GameNotJoined.gameName));
 				reply.GameNotJoined.reason = LANAPIInterface::RET_CRC_MISMATCH;
 				reply.GameNotJoined.gameIP = m_localIP;
 				reply.GameNotJoined.playerIP = senderIP;
