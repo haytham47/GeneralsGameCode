@@ -21,6 +21,65 @@ Additionally, there is a complementary project repository for fixing and improvi
 INI scripts, GUI, AI, maps, models, textures, audio, localization. You can find it
 [here](https://github.com/TheSuperHackers/GeneralsGamePatch/) and contribute to it as well.
 
+## About this fork
+
+This is a private fork of [TheSuperHackers/GeneralsGameCode](https://github.com/TheSuperHackers/GeneralsGameCode),
+used to play *Zero Hour* over LAN with friends. It follows upstream closely (upstream fixes are merged regularly) and
+adds its own fixes, performance work and features on top. Only *Zero Hour* is targeted; base *Generals* is kept
+compiling with its behaviour unchanged.
+
+**Every player in a LAN game must run the exact same build of this fork.** The fork changes game logic (for example
+pathfinding), so it is not compatible with retail *Zero Hour* 1.04 or with other builds in multiplayer.
+
+### What this fork changes
+
+**Late-game performance** (big LAN games with large armies)
+- Faster pathfinding in *Zero Hour*: the improved pathfinding code runs from the first frame, the A* open list is a
+  binary heap, the straight-line "beam" each search pushes toward the goal is capped, and the path queue serves twice
+  as many cells per frame.
+- Path requests that hit a full pathfind queue are retried instead of being dropped, so units no longer freeze
+  waiting for a path that never comes.
+- Measured on an 8-player map with about 1,150 units: logic time p95 about -50%, mean about -37%, units waiting more
+  than 3 seconds for a path about -79%. Tested on a 2-PC LAN game with about 400 units per team: in sync, no issues.
+- The exe is large-address-aware (4 GB address space on 64-bit Windows instead of 2 GB).
+- The exe asks hybrid-graphics laptops (NVIDIA Optimus, AMD switchable graphics) to use the dedicated GPU.
+
+**LAN play**
+- The host refuses players whose exe or INI data CRC differs, so a mismatched build cannot join and desync mid-game.
+  The Options menu shows `exe:XXXXXXXX ini:XXXXXXXX`; these must match on every PC.
+- New HUD line next to the network latency counter: the slowest player's frame rate and the current game speed
+  (in a lockstep game every PC runs at the speed of the slowest one).
+- The game speed recovers faster after a slow PC catches up (frame rates averaged over 8 seconds instead of 30).
+
+**Optional build cap** (off by default)
+- The host can limit how much each player can own, in load points: infantry 1, vehicle 3, aircraft 4, structure 2
+  (an INI `LoadPoints` field on an object overrides this). Add `LoadCap = 600` (or any number) to the host's
+  `Options.ini`; every player gets the host's value. Build buttons grey out at the cap and the HUD shows `Load x/cap`.
+
+**Display**
+- Fullscreen uses a borderless window by default, which avoids the D3D8 device-loss loop when switching windows.
+  Start with `-exclusivefullscreen` to get the original exclusive fullscreen mode.
+
+**Bug fixes**
+- Crash when a unit fires before it was ever drawn (weapon recoil list out of bounds).
+- Memory corruption when a network game resets (per-player frame rate and latency arrays written past their end).
+
+**Benchmark mode** (for development)
+- `generalszh.exe -bench <scenario.ini> -benchOut <dir> -setCwd "<game folder>" [-headless]` starts a scripted
+  late-game skirmish without menus, plays every slot like a human, writes per-frame timings, pathfinding counters and
+  logic CRCs, and quits. `-benchListMaps <file>` lists the multiplayer maps with their player counts.
+
+### Compatibility notes
+- Replays recorded with retail *Zero Hour* or with older builds of this fork do not play back correctly (paths differ).
+- Save games keep the same format. A build cap is not stored in save games, so a loaded skirmish plays without one.
+- Every PC also needs the Microsoft Visual C++ 2015-2022 x86 runtime.
+
+### Installing this fork for a LAN game
+1. Build `z_generals` (see [Building the Game Yourself](#building-the-game-yourself)), or take the exe from the LAN
+   package the host shares.
+2. Copy `generalszh.exe` into the *Zero Hour* game folder on every PC (keep a backup of the original).
+3. Before playing, check that the `exe:` and `ini:` values in the Options menu are identical on all PCs.
+
 ## Project Overview
 
 The game was originally developed using Visual Studio 6 and C++98. We've updated the code to be compatible with Visual
