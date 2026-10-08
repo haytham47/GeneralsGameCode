@@ -2,6 +2,7 @@ set(GAMEENGINE_SRC
     Include/Common/AcademyStats.h
 #    Include/Common/ActionManager.h
     Include/Common/AddonCompat.h
+    Include/Common/BenchMetrics.h
     Include/Common/ArchiveFile.h
     Include/Common/ArchiveFileSystem.h
     Include/Common/AsciiString.h
@@ -570,6 +571,7 @@ set(GAMEENGINE_SRC
     Include/GameNetwork/WOLBrowser/WebBrowser.h
     Include/Precompiled/PreRTS.h
     Source/Common/AddonCompat.cpp
+    Source/Common/BenchMetrics.cpp
     Source/Common/Audio/AudioEventRTS.cpp
     Source/Common/Audio/AudioRequest.cpp
     Source/Common/Audio/DynamicAudioEventInfo.cpp
