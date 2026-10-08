@@ -2460,7 +2460,10 @@ Int Pathfinder::examineNeighboringCells(PathfindCell *parentCell, PathfindCell *
 		Coord3D fromPos;
 		fromPos.x = parentCell->getXIndex() * PATHFIND_CELL_SIZE_F ;
 		fromPos.y = parentCell->getYIndex() * PATHFIND_CELL_SIZE_F ;
-		fromPos.z = TheTerrainLogic->getGroundHeight(fromPos.x , fromPos.y);
+		// FORK @performance 08/10/2026 The ground height is only needed for downhill-only locomotors and cliff cells,
+		// so it is looked up on first use instead of on every expansion (same value, same results).
+		fromPos.z = 0.0f;
+		Bool haveFromHeight = false;
 
 		for( int i=0; i<numNeighbors; i++ )
 		{
@@ -2500,6 +2503,10 @@ Int Pathfinder::examineNeighboringCells(PathfindCell *parentCell, PathfindCell *
 			// do the gravity check here
 			if ( locomotorSet.isDownhillOnly() )
 			{
+				if (!haveFromHeight) {
+					fromPos.z = TheTerrainLogic->getGroundHeight(fromPos.x , fromPos.y);
+					haveFromHeight = true;
+				}
 				Coord3D toPos;
 				toPos.x = newCellCoord.x * PATHFIND_CELL_SIZE_F ;
 				toPos.y = newCellCoord.y * PATHFIND_CELL_SIZE_F ;
@@ -2570,6 +2577,10 @@ Int Pathfinder::examineNeighboringCells(PathfindCell *parentCell, PathfindCell *
 				toPos.y = newCellCoord.y * PATHFIND_CELL_SIZE_F ;
 				toPos.z = TheTerrainLogic->getGroundHeight(toPos.x , toPos.y);
 
+				if (!haveFromHeight) {
+					fromPos.z = TheTerrainLogic->getGroundHeight(fromPos.x , fromPos.y);
+					haveFromHeight = true;
+				}
 				if ( fabs(fromPos.z - toPos.z)<PATHFIND_CELL_SIZE_F) {
 					newCostSoFar += 7*COST_DIAGONAL;
 				}

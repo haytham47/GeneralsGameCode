@@ -59,21 +59,32 @@ public:
 	PathfindOpenList() : m_serial(0) {}
 
 	void reset() { m_heap.clear(); m_serial = 0; }
-	PathfindCell* getHead() const { return m_heap.empty() ? nullptr : m_heap[0]; }
+	PathfindCell* getHead() const { return m_heap.empty() ? nullptr : m_heap[0].cell; }
 	Bool empty() const { return m_heap.empty(); }
 	Int size() const { return (Int)m_heap.size(); }
-	PathfindCell* getAt(Int index) const { return m_heap[index]; }
+	PathfindCell* getAt(Int index) const { return m_heap[index].cell; }
 
 	void insert(PathfindCell* cell);
 	void remove(PathfindCell* cell);
 
 private:
-	Bool isBefore(const PathfindCell* a, const PathfindCell* b) const;
-	void place(Int index, PathfindCell* cell);
+	// The ordering key is copied into the entry at insertion, so sifting never touches the cells themselves.
+	struct Entry
+	{
+		UnsignedInt cost;
+		UnsignedInt serial;
+		PathfindCell* cell;
+	};
+
+	static Bool isBefore(const Entry& a, const Entry& b)
+	{
+		return (a.cost != b.cost) ? (a.cost < b.cost) : (a.serial < b.serial);
+	}
+	void place(Int index, const Entry& entry);
 	void siftUp(Int index);
 	void siftDown(Int index);
 
-	std::vector<PathfindCell*> m_heap;
+	std::vector<Entry> m_heap;
 	UnsignedInt m_serial;
 };
 #endif
