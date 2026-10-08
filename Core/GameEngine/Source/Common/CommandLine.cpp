@@ -26,6 +26,7 @@
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
 #include "Common/ArchiveFileSystem.h"
+#include "Common/BenchMetrics.h"
 #include "Common/CommandLine.h"
 #include "Common/CRCDebug.h"
 #include "Common/LocalFileSystem.h"
@@ -443,6 +444,59 @@ Int parseReplay(char *args[], int num)
 		TheWritableGlobalData->m_shellMapOn = FALSE;
 
 		// Make replay playback possible while other clients (possible retail) are running
+		rts::ClientInstance::setMultiInstance(TRUE);
+		rts::ClientInstance::skipPrimaryInstance();
+
+		return 2;
+	}
+	return 1;
+}
+
+// FORK @feature 08/10/2026 Runs an automated benchmark scenario and quits (-bench <scenario file>).
+Int parseBench(char *args[], int num)
+{
+	if (num > 1)
+	{
+		Bench::setScenario(args[1]);
+		Bench::s_active = TRUE;
+
+		TheWritableGlobalData->m_playIntro = FALSE;
+		TheWritableGlobalData->m_playSizzle = FALSE;
+		TheWritableGlobalData->m_shellMapOn = FALSE;
+		TheWritableGlobalData->m_useFpsLimit = FALSE;
+
+		// Make benchmark runs possible while another client is running
+		rts::ClientInstance::setMultiInstance(TRUE);
+		rts::ClientInstance::skipPrimaryInstance();
+
+		return 2;
+	}
+	return 1;
+}
+
+// FORK @feature 08/10/2026 Sets the directory that -bench writes its results to.
+Int parseBenchOut(char *args[], int num)
+{
+	if (num > 1)
+	{
+		Bench::setOutDir(args[1]);
+		return 2;
+	}
+	return 1;
+}
+
+// FORK @feature 08/10/2026 Writes the multiplayer map list with player counts to a file and quits.
+Int parseBenchListMaps(char *args[], int num)
+{
+	if (num > 1)
+	{
+		Bench::setListMapsFile(args[1]);
+		Bench::s_active = TRUE;
+
+		TheWritableGlobalData->m_playIntro = FALSE;
+		TheWritableGlobalData->m_playSizzle = FALSE;
+		TheWritableGlobalData->m_shellMapOn = FALSE;
+
 		rts::ClientInstance::setMultiInstance(TRUE);
 		rts::ClientInstance::skipPrimaryInstance();
 
@@ -1194,6 +1248,11 @@ static CommandLineParam paramsForStartup[] =
 	// (If you have 4 cores, call it with -jobs 4)
 	// If you do not call this, all replays will be simulated in sequence in the same process.
 	{ "-jobs", parseJobs },
+
+	// FORK @feature 08/10/2026 Automated benchmark: -bench <scenario> [-benchOut <dir>], or -benchListMaps <file>.
+	{ "-bench", parseBench },
+	{ "-benchOut", parseBenchOut },
+	{ "-benchListMaps", parseBenchListMaps },
 
 	// TheSuperHackers @feature CryoTheRenegade 14/08/2026
 	// Use the current working directory as provided by the OS, or an explicit path.

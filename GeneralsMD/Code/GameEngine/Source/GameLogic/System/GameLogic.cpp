@@ -31,6 +31,7 @@
 
 #include "Common/AudioAffect.h"
 #include "Common/AudioHandleSpecialValues.h"
+#include "Common/BenchMetrics.h"
 #include "Common/BuildAssistant.h"
 #include "Common/CRCDebug.h"
 #include "Common/FramePacer.h"
@@ -3680,6 +3681,8 @@ void GameLogic::update()
 {
 	USE_PERF_TIMER(GameLogic_update)
 	PROFILER_SECTION_COLOR(0x4CAF50);
+	// FORK @performance 08/10/2026 Measures logic sections for the -bench mode (no effect on logic).
+	BenchScope benchLogic(BENCH_LOGIC_TOTAL);
 
 	LatchRestore<Bool> inUpdateLatch(m_isInUpdate, TRUE);
 #ifdef DO_UNIT_TIMINGS
@@ -3730,6 +3733,7 @@ void GameLogic::update()
 
 	// update (execute) scripts
 	{
+		BenchScope benchScripts(BENCH_SCRIPTS);
 		TheScriptEngine->UPDATE();
 	}
 
@@ -3790,6 +3794,7 @@ void GameLogic::update()
 
 	// process client commands
 	{
+		BenchScope benchCommands(BENCH_CMD_PROCESSING);
 		processCommandList( TheCommandList );
 	}
 
@@ -3827,6 +3832,7 @@ void GameLogic::update()
 #endif
 
 	{
+		BenchScope benchObjects(BENCH_OBJECT_UPDATES);
 		while (!m_sleepyUpdates.empty())
 		{
 			UpdateModulePtr u = peekSleepyUpdate();
@@ -3881,6 +3887,7 @@ void GameLogic::update()
 
 	// update the Artificial Intelligence system
 	{
+		BenchScope benchAI(BENCH_AI_PLAYERS);
 		TheAI->UPDATE();
 	}
 
@@ -3891,6 +3898,7 @@ void GameLogic::update()
 
 	// update partition info
 	{
+		BenchScope benchPartition(BENCH_PARTITION);
 		ThePartitionManager->UPDATE();
 	}
 

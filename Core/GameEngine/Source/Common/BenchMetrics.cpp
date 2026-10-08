@@ -75,7 +75,7 @@ namespace
 		"logic_total",
 		"cmd_processing",
 		"pathfind_queue",
-		"ai_players",
+		"ai_total",
 		"object_updates",
 		"partition",
 		"scripts",

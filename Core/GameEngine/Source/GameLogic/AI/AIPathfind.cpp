@@ -27,6 +27,7 @@
 // Author: Michael S. Booth, October 2001
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
+#include "Common/BenchMetrics.h"
 #include "GameLogic/AIPathfind.h"
 #include "GameLogic/Pathfinder/PathfindConstants.h"
 
@@ -1136,6 +1137,9 @@ void Pathfinder::cleanOpenAndClosedLists() {
 #endif
 
 	m_cumulativeCellsAllocated += count;
+	// FORK @performance 08/10/2026 Counts all searched cells (queued and immediate searches) for the -bench mode.
+	if (Bench::s_active)
+		Bench::addCounter(BENCHC_CELLS, count);
 }
 
 
@@ -1961,10 +1965,15 @@ Bool Pathfinder::queueForPath(ObjectID id)
 	}
 	if (nextSlot==m_queuePRHead) {
 		DEBUG_CRASH(("Ran out of pathfind queue slots."));
+		// FORK @performance 08/10/2026 Counts dropped path requests for the -bench mode.
+		if (Bench::s_active)
+			Bench::addCounter(BENCHC_PATH_DROPPED, 1);
 		return false;
 	}
 	m_queuedPathfindRequests[m_queuePRTail] = id;
 	m_queuePRTail = nextSlot;
+	if (Bench::s_active)
+		Bench::addCounter(BENCHC_PATH_QUEUED, 1);
 	return true;
 }
 
@@ -2172,7 +2181,12 @@ void Pathfinder::processPathfindQueue()
 #endif
 #endif
 
+	// FORK @performance 08/10/2026 Measures the path queue and counts zone rebuilds for the -bench mode.
+	BenchScope benchQueue(BENCH_PATHFIND_QUEUE);
+
 	if (m_zoneManager.needToCalculateZones()) {
+		if (Bench::s_active)
+			Bench::addCounter(BENCHC_ZONE_RECALC, 1);
 		m_zoneManager.calculateZones(m_map, m_layers, m_extent);
 		return;
 	}
@@ -2207,6 +2221,8 @@ void Pathfinder::processPathfindQueue()
 			m_queuePRHead = 0;
 		}
 	}
+	if (Bench::s_active)
+		Bench::addCounter(BENCHC_PATH_SERVED, pathsFound);
 	if (pathsFound > 0) {
 		PROFILER_PLOT("PathfindCells", (double)m_cumulativeCellsAllocated);
 		PROFILER_PLOT("PathfindPaths", (double)pathsFound);

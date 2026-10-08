@@ -18,6 +18,8 @@
 
 #include "GameLogic/Pathfinder/PathfindCellInfo.h"
 
+#include "Common/BenchMetrics.h"
+
 constexpr const UnsignedInt CELL_INFOS_TO_ALLOCATE = 30000;
 
 PathfindCellInfo *PathfindCellInfo::s_infoArray = nullptr;
@@ -98,6 +100,11 @@ PathfindCellInfo *PathfindCellInfo::getACellInfo(PathfindCell *cell,const ICoord
 		info->m_obstacleIsFence = false;
 		info->m_obstacleIsTransparent = false;
 		info->m_blockedByAlly = false;
+	}
+	// FORK @performance 08/10/2026 Counts exhaustion of the pathfinder info pool for the -bench mode.
+	else if (Bench::s_active)
+	{
+		Bench::addCounter(BENCHC_POOL_EXHAUSTED, 1);
 	}
 	return info;
 }
