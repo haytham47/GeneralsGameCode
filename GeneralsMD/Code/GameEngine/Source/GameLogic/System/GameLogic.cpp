@@ -248,6 +248,7 @@ GameLogic::GameLogic()
 	m_startNewGame = FALSE;
 	m_gameMode = GAME_NONE;
 	m_rankLevelLimit = 1000;
+	m_loadCap = 0;
 	m_pauseFrame = 0;
 	m_gamePaused = FALSE;
 	m_pauseSound = FALSE;
