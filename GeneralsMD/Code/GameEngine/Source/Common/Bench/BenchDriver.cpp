@@ -55,6 +55,8 @@
 #include <math.h>
 #include <vector>
 
+extern HWND ApplicationHWnd;
+
 namespace
 {
 	BenchScenario s_scenario;
@@ -107,6 +109,8 @@ namespace
 
 	void finish()
 	{
+		if (!TheGlobalData->m_headless)
+			Bench::setInfoInt("window_was_minimized", (ApplicationHWnd && ::IsIconic(ApplicationHWnd)) ? 1 : 0);
 		Bench::setInfoInt("setup_frame", (Int)s_setupFrame);
 		const Bool ok = Bench::writeResults(0, "");
 		printf("BENCH DONE: %u frames, results %s\n", TheGameLogic->getFrame(), ok ? "written" : "NOT written");
@@ -616,6 +620,12 @@ void BenchDriver::onEngineInit()
 		fail(error.str());
 		return;
 	}
+	// Windowed runs must really draw: a minimized window skips W3DDisplay::draw entirely.
+	if (!TheGlobalData->m_headless && ApplicationHWnd)
+	{
+		::ShowWindow(ApplicationHWnd, SW_RESTORE);
+		::SetForegroundWindow(ApplicationHWnd);
+	}
 	printf("BENCH START: %s on %s, %d players, %u frames\n", s_scenario.name.str(), s_scenario.map.str(), s_scenario.players, s_scenario.frames);
 	fflush(stdout);
 }
@@ -681,10 +691,13 @@ void BenchDriver::preLogicUpdate()
 	if ((frame % s_scenario.structureEvery) == 0)
 		placeLaneStructures();
 
-	// Windowed runs keep the camera on the map centre, where the armies meet, so the render cost is measured
-	// on the battle. Client only: logic never reads the camera.
+	// Windowed runs keep the camera on the local player's spawn area (outside its shroud), where its waves gather
+	// and enemy attacks arrive, so the render cost is measured on visible units. Client only: logic never reads it.
 	if (!TheGlobalData->m_headless && TheTacticalView && (frame % 150) == 0)
-		TheTacticalView->lookAt(&s_centre);
+	{
+		const Coord3D watch = lerp(s_start[0], s_centre, 0.18f);
+		TheTacticalView->lookAt(&watch);
+	}
 }
 
 void BenchDriver::postLogicUpdate()
