@@ -1079,6 +1079,14 @@ UpdateSleepTime AIUpdateInterface::update()
 		{
 			setQueueForPathTime(0);
 			queueForPathOrRetry();
+			// FORK @bugfix 08/10/2026 A retry scheduled during our own update must also shorten this update's sleep,
+			// otherwise a unit with a long state machine sleep would retry much later than planned.
+			if (m_queueForPathFrame > now)
+			{
+				UnsignedInt sleepForRetryDelta = m_queueForPathFrame - now;
+				if (sleepForRetryDelta < subMachineSleep)
+					subMachineSleep = UPDATE_SLEEP(sleepForRetryDelta);
+			}
 		}
 		else
 		{
