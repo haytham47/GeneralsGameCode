@@ -112,13 +112,26 @@
 #endif
 
 // This is here to easily toggle between the retail compatible with fixed pathfinding fallback and pure fixed pathfinding mode
+// FORK @performance 08/10/2026 Zero Hour uses the fixed pathfinding from the first frame. The retail path sorts the open list
+// with a slow head-first scan and only switches to the fixed (reverse insertion) code after a crash was caught.
+// All LAN players run the same build, so retail compatibility of paths is not needed. Base Generals stays retail.
 #ifndef RETAIL_COMPATIBLE_PATHFINDING
+#if RTS_ZEROHOUR
+#define RETAIL_COMPATIBLE_PATHFINDING (0)
+#else
 #define RETAIL_COMPATIBLE_PATHFINDING (1)
+#endif
 #endif
 
 // This is here to easily toggle between the retail compatible pathfinding memory allocation and the new static allocated data mode
+// FORK @performance 08/10/2026 Zero Hour uses the static allocation, so obstacle cells no longer drain the shared
+// PathfindCellInfo pool (late games with many buildings exhausted it and units froze).
 #ifndef RETAIL_COMPATIBLE_PATHFINDING_ALLOCATION
+#if RTS_ZEROHOUR
+#define RETAIL_COMPATIBLE_PATHFINDING_ALLOCATION (0)
+#else
 #define RETAIL_COMPATIBLE_PATHFINDING_ALLOCATION (1)
+#endif
 #endif
 
 #ifndef RETAIL_COMPATIBLE_CIRCLE_FILL_ALGORITHM
