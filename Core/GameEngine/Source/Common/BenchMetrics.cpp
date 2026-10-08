@@ -64,6 +64,7 @@ namespace
 
 	std::vector<BenchRow> s_rows;
 	std::vector<BenchCRC> s_crcs;
+	std::vector<BenchCRC> s_messages; // frame, (type << 8) | player
 	std::vector<BenchInfo> s_info;
 
 	UnsignedInt s_wallStartMs = 0;
@@ -249,6 +250,14 @@ namespace Bench
 		s_crcs.push_back(c);
 	}
 
+	void logMessage(UnsignedInt logicFrame, Int type, Int playerIndex)
+	{
+		BenchCRC m;
+		m.frame = logicFrame;
+		m.crc = ((UnsignedInt)type << 8) | ((UnsignedInt)playerIndex & 0xff);
+		s_messages.push_back(m);
+	}
+
 	void setInfo(const char *key, const char *value)
 	{
 		for (size_t i = 0; i < s_info.size(); ++i)
@@ -328,6 +337,17 @@ namespace Bench
 			else
 			{
 				ok = FALSE;
+			}
+		}
+
+		// messages.log
+		{
+			FILE *f = fopen(joinPath(s_outDir, "messages.log").c_str(), "w");
+			if (f)
+			{
+				for (size_t i = 0; i < s_messages.size(); ++i)
+					fprintf(f, "%u type=%u player=%u\n", s_messages[i].frame, s_messages[i].crc >> 8, s_messages[i].crc & 0xff);
+				fclose(f);
 			}
 		}
 

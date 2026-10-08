@@ -71,6 +71,8 @@ namespace Bench
 	/// Close the current row. Called once per logic frame.
 	void endFrame(UnsignedInt logicFrame);
 	void recordCRC(UnsignedInt logicFrame, UnsignedInt crc);
+	/// Logs every command the logic processes (messages.log), to compare runs and find divergence.
+	void logMessage(UnsignedInt logicFrame, Int type, Int playerIndex);
 	void setInfo(const char *key, const char *value);
 	void setInfoInt(const char *key, Int value);
 

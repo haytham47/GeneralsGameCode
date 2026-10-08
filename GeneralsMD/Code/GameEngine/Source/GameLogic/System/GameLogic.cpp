@@ -2631,6 +2631,9 @@ void GameLogic::processCommandList( CommandList *list )
 #ifdef RTS_DEBUG
 		DEBUG_ASSERTCRASH(msg != nullptr && msg != (GameMessage*)0xdeadbeef, ("bad msg"));
 #endif
+		// FORK @feature 08/10/2026 Logs processed commands in -bench mode to locate run divergence.
+		if (Bench::s_active)
+			Bench::logMessage(m_frame, (Int)msg->getType(), msg->getPlayerIndex());
 		logicMessageDispatcher( msg, nullptr );
 	}
 

@@ -551,6 +551,20 @@ void BenchDriver::onEngineInit()
 
 void BenchDriver::preLogicUpdate()
 {
+	// The windowed client also sends its own network commands (replay camera, CRC, retaliation option).
+	// Drop them so a windowed run plays exactly the same game as a headless run; only the driver plays.
+	// This runs before the driver appends its own commands for this frame.
+	for (GameMessage *msg = TheCommandList->getFirstMessage(); msg; )
+	{
+		GameMessage *next = msg->next();
+		if (msg->getType() > GameMessage::MSG_BEGIN_NETWORK_MESSAGES && msg->getType() < GameMessage::MSG_END_NETWORK_MESSAGES)
+		{
+			TheCommandList->removeMessage(msg);
+			deleteInstance(msg);
+		}
+		msg = next;
+	}
+
 	if (s_finished || !TheGameLogic->isInGame() || TheGameLogic->isInShellGame())
 		return;
 
