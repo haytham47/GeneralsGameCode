@@ -525,6 +525,7 @@ public:
   //-------------------------------------------------------------------------------------------------
   NameKeyType getMaxSimultaneousLinkKey() const { return m_maxSimultaneousLinkKey; }
   UnsignedInt getMaxSimultaneousOfType() const;
+	Int getLoadPoints() const;	///< FORK weight against the per-player build cap
 
 	void validate();
 
@@ -753,6 +754,7 @@ private:
 	UnsignedShort		m_refundValue;								///< custom resale value, if sold. (0 == use default)
 	UnsignedShort		m_threatValue;								///< Threat map info
 	UnsignedShort		m_maxSimultaneousOfType;			///< max simultaneous of this unit we can have (per player) at one time. (0 == unlimited)
+	Int							m_loadPoints;									///< FORK build cap weight (-1 = derive from KindOf)
 
 	// ---- Bool-sized things
   Bool          m_maxSimultaneousDeterminedBySuperweaponRestriction; ///< If true, override value in m_maxSimultaneousOfType with value from GameInfo::getSuperweaponRestriction()

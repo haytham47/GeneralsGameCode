@@ -47,6 +47,7 @@ public:
 protected:
 	// These are used for keeping track of parameters to the run ahead equation.
 	// frames per second history variables.
+	UnsignedInt m_fpsHistoryLength;	///< FORK number of one-second fps samples averaged (shorter than the INI value)
 	Real *m_fpsList;								///< A record of how many game logic frames per second there were for the last 60 seconds.
 	time_t m_lastFpsTimeThing;																///< The time when the last fps entry started being recorded.
 	Int m_fpsListIndex;																				///< Index into the array of the current fps list entry being measured.

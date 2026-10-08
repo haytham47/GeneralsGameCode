@@ -40,6 +40,12 @@ if(MSVC)
     target_link_options(z_generals PRIVATE "/NODEFAULTLIB:libci.lib")
 endif()
 
+# FORK @performance 08/10/2026 Large-address-aware exe: 4 GB of address space on 64-bit Windows instead of 2 GB
+# (the same flag the community 4GB patch sets on retail Zero Hour).
+if(MSVC)
+    target_link_options(z_generals PRIVATE "/LARGEADDRESSAWARE")
+endif()
+
 target_include_directories(z_generals PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_BINARY_DIR}

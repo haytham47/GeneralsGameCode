@@ -271,6 +271,7 @@ public:
 
   // Check MaxSimultaneousOfType
   Bool canBuildMoreOfType( const ThingTemplate *whatToBuild ) const;
+  Int getLoadPoints() const;	///< FORK load points used against the per-player build cap
 
 	/// Difficulty level for this player.
 	GameDifficulty getPlayerDifficulty() const;

@@ -121,6 +121,7 @@ public:
 	void setCampaignDifficulty(Int diff);
 
 	Int getNetworkLatencyFontSize();
+	UnsignedInt getLoadCap();	///< FORK per-player build cap the host offers (Options.ini LoadCap, 0 = off)
 	Int getRenderFpsFontSize();
 	Int getSystemTimeFontSize();
 	Int getGameTimeFontSize();

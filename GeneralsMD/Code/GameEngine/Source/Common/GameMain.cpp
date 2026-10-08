@@ -28,6 +28,8 @@
 
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
+#include "Common/BenchDriver.h"
+#include "Common/BenchMetrics.h"
 #include "Common/FramePacer.h"
 #include "Common/GameEngine.h"
 #include "Common/ReplaySimulation.h"
@@ -49,10 +51,18 @@ Int GameMain()
 	{
 		exitcode = ReplaySimulation::simulateReplays(TheGlobalData->m_simulateReplays, TheGlobalData->m_simulateReplayJobs);
 	}
+	// FORK @feature 08/10/2026 Runs the -bench scenario as a logic-only loop in headless mode.
+	else if (Bench::s_active && TheGlobalData->m_headless)
+	{
+		exitcode = BenchDriver::runHeadless();
+	}
 	else
 	{
 		// run it
 		TheGameEngine->execute();
+
+		if (Bench::s_active)
+			exitcode = BenchDriver::getExitCode();
 	}
 
 	// since execute() returned, we are exiting the game

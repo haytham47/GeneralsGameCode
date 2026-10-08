@@ -90,6 +90,7 @@
 
 #include "GameNetwork/GameInfo.h"
 #include "GameNetwork/NetworkInterface.h"
+#include "GameNetwork/SlowestPlayer.h"
 
 #include "Common/UnitTimings.h" //Contains the DO_UNIT_TIMINGS define jba.
 
@@ -1176,6 +1177,10 @@ InGameUI::InGameUI()
 	m_networkLatencyColor = GameMakeColor( 173, 216, 255, 255 );
 	m_networkLatencyDropColor = GameMakeColor( 0, 0, 0, 255 );
 	m_lastNetworkLatencyFrames = ~0u;
+	m_slowestPlayerString = nullptr;
+	m_lastSlowestPlayerUpdateMs = 0;
+	m_loadCapString = nullptr;
+	m_lastLoadCapUpdateMs = 0;
 
 	m_renderFpsString = nullptr;
 	m_renderFpsLimitString = nullptr;
@@ -2296,6 +2301,12 @@ void InGameUI::freeCustomUiResources()
 {
 	TheDisplayStringManager->freeDisplayString(m_networkLatencyString);
 	m_networkLatencyString = nullptr;
+	TheDisplayStringManager->freeDisplayString(m_slowestPlayerString);
+	m_slowestPlayerString = nullptr;
+	m_lastSlowestPlayerText.clear();
+	TheDisplayStringManager->freeDisplayString(m_loadCapString);
+	m_loadCapString = nullptr;
+	m_lastLoadCapText.clear();
 	TheDisplayStringManager->freeDisplayString(m_renderFpsString);
 	m_renderFpsString = nullptr;
 	TheDisplayStringManager->freeDisplayString(m_renderFpsLimitString);
@@ -3786,6 +3797,14 @@ void InGameUI::postWindowDraw()
 	if (m_networkLatencyPointSize > 0 && TheGameLogic->isInMultiplayerGame())
 	{
 		drawNetworkLatency(hudOffsetX, hudOffsetY);
+		// FORK @feature 08/10/2026 Shows which player's frame rate limits the game speed (shown with the latency counter).
+		drawSlowestPlayer(hudOffsetX, hudOffsetY);
+	}
+
+	// FORK @feature 08/10/2026 Shows the local player's build cap usage when the game has a cap.
+	if (m_networkLatencyPointSize > 0 && TheGameLogic->getLoadCap() > 0)
+	{
+		drawLoadCap(hudOffsetX, hudOffsetY);
 	}
 
 	if (m_renderFpsPointSize > 0)
@@ -6053,6 +6072,22 @@ void InGameUI::refreshNetworkLatencyResources()
 	Int adjustedNetworkLatencyFontSize = TheGlobalLanguageData->adjustFontSize(m_networkLatencyPointSize);
 	GameFont* latencyFont = TheWindowManager->winFindFont(m_networkLatencyFont, adjustedNetworkLatencyFontSize, m_networkLatencyBold);
 	m_networkLatencyString->setFont(latencyFont);
+
+	// FORK @feature 08/10/2026 The slowest player display shares the latency font.
+	if (!m_slowestPlayerString)
+	{
+		m_slowestPlayerString = TheDisplayStringManager->newDisplayString();
+		m_lastSlowestPlayerText.clear();
+	}
+	m_slowestPlayerString->setFont(latencyFont);
+
+	// FORK @feature 08/10/2026 The build cap display shares the latency font.
+	if (!m_loadCapString)
+	{
+		m_loadCapString = TheDisplayStringManager->newDisplayString();
+		m_lastLoadCapText.clear();
+	}
+	m_loadCapString->setFont(latencyFont);
 }
 
 void InGameUI::refreshRenderFpsResources()
@@ -6209,6 +6244,93 @@ void InGameUI::drawNetworkLatency(Int &x, Int &y)
 	else
 	{
 		m_networkLatencyString->draw(m_networkLatencyPosition.x, m_networkLatencyPosition.y, m_networkLatencyColor, m_networkLatencyDropColor);
+	}
+}
+
+// FORK @feature 08/10/2026 Draws "Slowest: <name> <fps> fps | game <rate> fps" next to the latency counter.
+// Every peer receives every player's average frame rate (relayed run ahead metrics), and the game speed in a LAN
+// game follows the slowest of them, so this tells the players whose machine holds the game back.
+void InGameUI::drawSlowestPlayer(Int &x, Int &y)
+{
+	if (!TheNetwork || !m_slowestPlayerString)
+		return;
+
+	const UnsignedInt nowMs = timeGetTime();
+	if (m_lastSlowestPlayerText.isEmpty() || nowMs - m_lastSlowestPlayerUpdateMs >= 1000u)
+	{
+		m_lastSlowestPlayerUpdateMs = nowMs;
+
+		Int fps[MAX_SLOTS];
+		Bool connected[MAX_SLOTS];
+		const Int localSlot = (Int)TheNetwork->getLocalPlayerID();
+		for (Int i = 0; i < MAX_SLOTS; ++i)
+		{
+			fps[i] = TheNetwork->getSlotAverageFPS(i);
+			connected[i] = (i == localSlot) || TheNetwork->isPlayerConnected(i);
+		}
+
+		UnicodeString text;
+		const Int slowest = FindSlowestSlot(fps, connected, MAX_SLOTS);
+		if (slowest >= 0)
+			text.format(L"Slowest: %ls %d fps | game %u fps", TheNetwork->getPlayerName(slowest).str(), fps[slowest], TheNetwork->getFrameRate());
+		else
+			text.format(L"game %u fps", TheNetwork->getFrameRate());
+
+		if (text.compare(m_lastSlowestPlayerText) != 0)
+		{
+			m_slowestPlayerString->setText(text);
+			m_lastSlowestPlayerText = text;
+		}
+	}
+
+	if (isAtHudAnchorPos(m_networkLatencyPosition))
+	{
+		m_slowestPlayerString->draw(kHudAnchorX + x, kHudAnchorY + y, m_networkLatencyColor, m_networkLatencyDropColor);
+		x += m_slowestPlayerString->getWidth() + kHudGapPx;
+	}
+	else
+	{
+		Int width = 0;
+		Int height = 0;
+		m_networkLatencyString->getSize(&width, &height);
+		m_slowestPlayerString->draw(m_networkLatencyPosition.x, m_networkLatencyPosition.y + height, m_networkLatencyColor, m_networkLatencyDropColor);
+	}
+}
+
+// FORK @feature 08/10/2026 Draws "Load <used>/<cap>" for the local player (refreshed once per second).
+void InGameUI::drawLoadCap(Int &x, Int &y)
+{
+	if (!m_loadCapString)
+		return;
+
+	Player *localPlayer = ThePlayerList ? ThePlayerList->getLocalPlayer() : nullptr;
+	if (!localPlayer || !localPlayer->isPlayerActive())
+		return;
+
+	const UnsignedInt nowMs = timeGetTime();
+	if (m_lastLoadCapText.isEmpty() || nowMs - m_lastLoadCapUpdateMs >= 1000u)
+	{
+		m_lastLoadCapUpdateMs = nowMs;
+		UnicodeString text;
+		text.format(L"Load %d/%u", localPlayer->getLoadPoints(), TheGameLogic->getLoadCap());
+		if (text.compare(m_lastLoadCapText) != 0)
+		{
+			m_loadCapString->setText(text);
+			m_lastLoadCapText = text;
+		}
+	}
+
+	if (isAtHudAnchorPos(m_networkLatencyPosition))
+	{
+		m_loadCapString->draw(kHudAnchorX + x, kHudAnchorY + y, m_networkLatencyColor, m_networkLatencyDropColor);
+		x += m_loadCapString->getWidth() + kHudGapPx;
+	}
+	else
+	{
+		Int width = 0;
+		Int height = 0;
+		m_networkLatencyString->getSize(&width, &height);
+		m_loadCapString->draw(m_networkLatencyPosition.x, m_networkLatencyPosition.y + 2 * height, m_networkLatencyColor, m_networkLatencyDropColor);
 	}
 }
 

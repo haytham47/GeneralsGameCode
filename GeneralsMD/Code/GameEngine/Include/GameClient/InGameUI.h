@@ -595,6 +595,8 @@ private:
 
 	void updateRenderFpsString();
 	void drawNetworkLatency(Int &x, Int &y);
+	void drawSlowestPlayer(Int &x, Int &y);
+	void drawLoadCap(Int &x, Int &y);
 	void drawRenderFps(Int &x, Int &y);
 	void drawSystemTime(Int &x, Int &y);
 	void drawGameTime();
@@ -767,6 +769,16 @@ protected:
 	Color												m_networkLatencyColor;
 	Color												m_networkLatencyDropColor;
 	UnsignedInt									m_lastNetworkLatencyFrames;
+
+	// FORK @feature 08/10/2026 Slowest player display (uses the network latency font and color)
+	DisplayString *							m_slowestPlayerString;
+	UnicodeString								m_lastSlowestPlayerText;
+	UnsignedInt									m_lastSlowestPlayerUpdateMs;
+
+	// FORK @feature 08/10/2026 Build cap display "Load used/cap" (uses the network latency font and color)
+	DisplayString *							m_loadCapString;
+	UnicodeString								m_lastLoadCapText;
+	UnsignedInt									m_lastLoadCapUpdateMs;
 
 	// Render FPS Counter
 	DisplayString *							m_renderFpsString;

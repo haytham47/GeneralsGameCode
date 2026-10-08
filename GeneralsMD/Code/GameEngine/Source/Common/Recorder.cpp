@@ -23,6 +23,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
+#include "Common/BenchMetrics.h"
 
 #include "Common/Recorder.h"
 #include "Common/file.h"
@@ -404,6 +405,9 @@ void RecorderClass::reset() {
  * Do the update for this frame.
  */
 void RecorderClass::update() {
+	// FORK @feature 08/10/2026 Bench games are not recorded, so they never overwrite the player's last replay.
+	if (Bench::s_active)
+		return;
 	if (m_mode == RECORDERMODETYPE_RECORD || m_mode == RECORDERMODETYPE_NONE) {
 		updateRecord();
 	} else if (isPlaybackMode()) {

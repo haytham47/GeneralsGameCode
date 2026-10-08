@@ -57,6 +57,7 @@
 #include "GameNetwork/IPEnumeration.h"
 #include "GameNetwork/LANAPICallbacks.h"
 #include "Common/MultiplayerSettings.h"
+#include "Common/OptionPreferences.h"
 #include "GameClient/GameText.h"
 #include "GameNetwork/GUIUtil.h"
 
@@ -859,6 +860,11 @@ void LanGameOptionsMenuInit( WindowLayout *layout, void *userData )
 		game->setMap( pref.getPreferredMap() );
     game->setStartingCash( pref.getStartingCash() );
     game->setSuperweaponRestriction( pref.getSuperweaponRestricted() ? 1 : 0 );
+		// FORK @feature 08/10/2026 The host's build cap (Options.ini LoadCap) goes to every player with the game options.
+		{
+			OptionPreferences optionPref;
+			game->setLoadCap( optionPref.getLoadCap() );
+		}
 		AsciiString lowerMap = pref.getPreferredMap();
 		lowerMap.toLower();
 		std::map<AsciiString, MapMetaData>::iterator it = TheMapCache->find(lowerMap);

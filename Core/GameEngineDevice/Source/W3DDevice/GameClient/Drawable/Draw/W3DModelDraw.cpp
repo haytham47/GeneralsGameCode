@@ -3708,7 +3708,8 @@ Bool W3DModelDraw::handleWeaponFireFX(WeaponSlotType wslot, Int specificBarrelTo
 
 	Bool handled = false;
 
-	if (specificBarrelToUse < 0 || specificBarrelToUse > wbvec.size())
+	// FORK @bugfix 08/10/2026 Rejects a barrel index equal to the barrel count (it read one past the end).
+	if (specificBarrelToUse < 0 || specificBarrelToUse >= (Int)wbvec.size())
 		specificBarrelToUse = 0;
 
 	const ModelConditionInfo::WeaponBarrelInfo& info = wbvec[specificBarrelToUse];
@@ -3755,9 +3756,16 @@ Bool W3DModelDraw::handleWeaponFireFX(WeaponSlotType wslot, Int specificBarrelTo
 	if (info.m_recoilBone || info.m_muzzleFlashBone)
 	{
 		//DEBUG_LOG(("START muzzleflash %08lx for Draw %08lx state %s at frame %d",info.m_muzzleFlashBone,this,m_curState->m_description.str(),TheGameLogic->getFrame()));
-		WeaponRecoilInfo& recoil = m_weaponRecoilInfoVec[wslot][specificBarrelToUse];
-		recoil.m_state = WeaponRecoilInfo::RECOIL_START;
-		recoil.m_recoilRate = getW3DModelDrawModuleData()->m_initialRecoil;
+		// FORK @bugfix 08/10/2026 Resizes the recoil list when the barrel list was filled after the last model state change.
+		// Without this a unit that fires before it was ever drawn (e.g. headless or off screen) writes past the end of the list.
+		if (specificBarrelToUse >= (Int)m_weaponRecoilInfoVec[wslot].size())
+			rebuildWeaponRecoilInfo(m_curState);
+		if (specificBarrelToUse < (Int)m_weaponRecoilInfoVec[wslot].size())
+		{
+			WeaponRecoilInfo& recoil = m_weaponRecoilInfoVec[wslot][specificBarrelToUse];
+			recoil.m_state = WeaponRecoilInfo::RECOIL_START;
+			recoil.m_recoilRate = getW3DModelDrawModuleData()->m_initialRecoil;
+		}
 		if (info.m_muzzleFlashBone != 0)
 			info.setMuzzleFlashHidden(m_renderObject, false);
 	}

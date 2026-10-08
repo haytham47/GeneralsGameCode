@@ -31,6 +31,7 @@
 
 #include "Common/AudioAffect.h"
 #include "Common/AudioHandleSpecialValues.h"
+#include "Common/BenchMetrics.h"
 #include "Common/BuildAssistant.h"
 #include "Common/CRCDebug.h"
 #include "Common/FramePacer.h"
@@ -247,6 +248,7 @@ GameLogic::GameLogic()
 	m_startNewGame = FALSE;
 	m_gameMode = GAME_NONE;
 	m_rankLevelLimit = 1000;
+	m_loadCap = 0; // FORK @feature 08/10/2026 build cap off until a game starts
 	m_pauseFrame = 0;
 	m_gamePaused = FALSE;
 	m_pauseSound = FALSE;
@@ -478,6 +480,7 @@ void GameLogic::reset()
 	TheWeatherSetting = (WeatherSetting*) ws->deleteOverrides();
 
 	m_rankPointsToAddAtGameStart = 0;
+	m_loadCap = 0; // FORK @feature 08/10/2026 build cap off between games
 }
 
 static Object * placeObjectAtPosition(Int slotNum, AsciiString objectTemplateName, Coord3D& pos, Player *pPlayer,
@@ -1257,6 +1260,10 @@ void GameLogic::tryStartNewGame( Bool loadingSaveGame )
   // On a NEW game, we need to copy the superweapon restrictions from the game info to here
   // (because TheGameInfo is not always saved and doesn't carry over to replays). On a save
   // game, we save the superweapon restrictions in GameLogic::xfer()
+  // FORK @feature 08/10/2026 The per-player build cap comes from the game options (LAN, skirmish, replay header).
+  // It is not saved in save games, so a loaded save plays without a cap.
+  m_loadCap = ( !loadingSaveGame && TheGameInfo ) ? TheGameInfo->getLoadCap() : 0;
+
   if ( !loadingSaveGame )
   {
     if ( TheGameInfo )
@@ -2630,6 +2637,9 @@ void GameLogic::processCommandList( CommandList *list )
 #ifdef RTS_DEBUG
 		DEBUG_ASSERTCRASH(msg != nullptr && msg != (GameMessage*)0xdeadbeef, ("bad msg"));
 #endif
+		// FORK @feature 08/10/2026 Logs processed commands in -bench mode to locate run divergence.
+		if (Bench::s_active)
+			Bench::logMessage(m_frame, (Int)msg->getType(), msg->getPlayerIndex());
 		logicMessageDispatcher( msg, nullptr );
 	}
 
@@ -3680,6 +3690,8 @@ void GameLogic::update()
 {
 	USE_PERF_TIMER(GameLogic_update)
 	PROFILER_SECTION_COLOR(0x4CAF50);
+	// FORK @performance 08/10/2026 Measures logic sections for the -bench mode (no effect on logic).
+	BenchScope benchLogic(BENCH_LOGIC_TOTAL);
 
 	LatchRestore<Bool> inUpdateLatch(m_isInUpdate, TRUE);
 #ifdef DO_UNIT_TIMINGS
@@ -3730,6 +3742,7 @@ void GameLogic::update()
 
 	// update (execute) scripts
 	{
+		BenchScope benchScripts(BENCH_SCRIPTS);
 		TheScriptEngine->UPDATE();
 	}
 
@@ -3790,6 +3803,7 @@ void GameLogic::update()
 
 	// process client commands
 	{
+		BenchScope benchCommands(BENCH_CMD_PROCESSING);
 		processCommandList( TheCommandList );
 	}
 
@@ -3827,6 +3841,7 @@ void GameLogic::update()
 #endif
 
 	{
+		BenchScope benchObjects(BENCH_OBJECT_UPDATES);
 		while (!m_sleepyUpdates.empty())
 		{
 			UpdateModulePtr u = peekSleepyUpdate();
@@ -3881,6 +3896,7 @@ void GameLogic::update()
 
 	// update the Artificial Intelligence system
 	{
+		BenchScope benchAI(BENCH_AI_PLAYERS);
 		TheAI->UPDATE();
 	}
 
@@ -3891,6 +3907,7 @@ void GameLogic::update()
 
 	// update partition info
 	{
+		BenchScope benchPartition(BENCH_PARTITION);
 		ThePartitionManager->UPDATE();
 	}
 

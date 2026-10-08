@@ -61,6 +61,7 @@
 #include "GameNetwork/GameSpy/LobbyUtils.h"
 
 #include "Common/MultiplayerSettings.h"
+#include "Common/OptionPreferences.h"
 #include "GameClient/GameText.h"
 #include "GameClient/ExtendedMessageBox.h"
 #include "GameClient/MessageBox.h"
@@ -1318,6 +1319,11 @@ void SkirmishGameOptionsMenuInit( WindowLayout *layout, void *userData )
 
   TheSkirmishGameInfo->setStartingCash( prefs.getStartingCash() );
   TheSkirmishGameInfo->setSuperweaponRestriction( prefs.getSuperweaponRestricted() ? 1 : 0 );
+  // FORK @feature 08/10/2026 Skirmish uses the same build cap setting (Options.ini LoadCap).
+  {
+    OptionPreferences optionPref;
+    TheSkirmishGameInfo->setLoadCap( optionPref.getLoadCap() );
+  }
 
   TheSkirmishGameInfo->setMap(prefs.getPreferredMap());
 	const MapMetaData *md = TheMapCache->findMap(TheSkirmishGameInfo->getMap());

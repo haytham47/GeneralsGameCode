@@ -2912,10 +2912,51 @@ static void countExisting( Object *obj, void *userData )
   }
 }
 
+// ------------------------------------------------------------------------------------------------
+// FORK @feature 08/10/2026 Sums the load points of a living object and of the units in its production queue.
+// ------------------------------------------------------------------------------------------------
+static void addLoadPoints( Object *obj, void *userData )
+{
+  if ( obj->isEffectivelyDead() )
+    return;
+
+  Int *total = (Int *)userData;
+  *total += obj->getTemplate()->getLoadPoints();
+
+  ProductionUpdateInterface *pui = ProductionUpdate::getProductionUpdateInterfaceFromObject( obj );
+  if ( pui )
+  {
+    for ( const ProductionEntry *entry = pui->firstProduction(); entry; entry = pui->nextProduction( entry ) )
+    {
+      if ( entry->getProductionType() == PRODUCTION_UNIT && entry->getProductionObject() )
+        *total += entry->getProductionObject()->getLoadPoints() * entry->getProductionQuantityRemaining();
+    }
+  }
+}
+
+//=============================================================================
+// FORK @feature 08/10/2026 Load points this player uses: living objects plus units waiting in production queues.
+Int Player::getLoadPoints() const
+{
+  Int total = 0;
+  iterateObjects( addLoadPoints, &total );
+  return total;
+}
+
 //=============================================================================
 // Make sure that building another of this unit/structure/object won't exceed MaxSimultaneousOfType()
 Bool Player::canBuildMoreOfType( const ThingTemplate *whatToBuild ) const
 {
+  // FORK @feature 08/10/2026 Per-player build cap: refuse anything with load points that would go over the cap.
+  // Objects with no load points are never blocked. The cap comes from the synchronized game options.
+  const UnsignedInt loadCap = TheGameLogic->getLoadCap();
+  if ( loadCap != 0 )
+  {
+    const Int cost = whatToBuild->getLoadPoints();
+    if ( cost > 0 && getLoadPoints() + cost > (Int)loadCap )
+      return false;
+  }
+
   // make sure we're not maxed out for this type of unit.
   UnsignedInt maxSimultaneousOfType = whatToBuild->getMaxSimultaneousOfType();
   if (maxSimultaneousOfType != 0)

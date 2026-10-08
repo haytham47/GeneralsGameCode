@@ -17,6 +17,8 @@ set(GAMEENGINE_SRC
     Include/Common/BitFlags.h
     Include/Common/BitFlagsIO.h
     Include/Common/BorderColors.h
+    Include/Common/BenchDriver.h
+    Include/Common/BenchScenario.h
     Include/Common/BuildAssistant.h
     Include/Common/ClientUpdateModule.h
 #    Include/Common/CommandLine.h
@@ -565,6 +567,8 @@ set(GAMEENGINE_SRC
 #    Source/Common/DamageFX.cpp
 #    Source/Common/Dict.cpp
 #    Source/Common/DiscreteCircle.cpp
+    Source/Common/Bench/BenchDriver.cpp
+    Source/Common/Bench/BenchScenario.cpp
     Source/Common/GameEngine.cpp
     Source/Common/GameLOD.cpp
     Source/Common/GameMain.cpp

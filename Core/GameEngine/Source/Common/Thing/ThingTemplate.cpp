@@ -269,6 +269,7 @@ const FieldParse ThingTemplate::s_objectFieldParseTable[] =
 	{ "ThreatValue",						INI::parseUnsignedShort,		nullptr, offsetof(ThingTemplate, m_threatValue ) },
   { "MaxSimultaneousOfType",	ThingTemplate::parseMaxSimultaneous,		nullptr, offsetof(ThingTemplate, m_maxSimultaneousOfType ) },
   { "MaxSimultaneousLinkKey",	NameKeyGenerator::parseStringAsNameKeyType,		nullptr, offsetof(ThingTemplate, m_maxSimultaneousLinkKey ) }, // Added in Zero Hour
+	{ "LoadPoints",						INI::parseInt,							nullptr, offsetof(ThingTemplate, m_loadPoints ) }, // FORK @feature 08/10/2026 Build cap weight
 	{ "CrusherLevel",					INI::parseUnsignedByte,			nullptr, offsetof( ThingTemplate, m_crusherLevel ) },
 	{ "CrushableLevel",				INI::parseUnsignedByte,			nullptr, offsetof( ThingTemplate, m_crushableLevel ) },
 
@@ -293,6 +294,7 @@ const FieldParse ThingTemplate::s_objectReskinFieldParseTable[] =
   // Needed to avoid some cheats with the scud storm rebuild hole
   { "MaxSimultaneousOfType",	ThingTemplate::parseMaxSimultaneous,		nullptr, offsetof(ThingTemplate, m_maxSimultaneousOfType ) }, // Added in Zero Hour
   { "MaxSimultaneousLinkKey",	NameKeyGenerator::parseStringAsNameKeyType,		nullptr, offsetof(ThingTemplate, m_maxSimultaneousLinkKey ) }, // Added in Zero Hour
+	{ "LoadPoints",						INI::parseInt,							nullptr, offsetof(ThingTemplate, m_loadPoints ) }, // FORK @feature 08/10/2026 Build cap weight
 
 	{ nullptr, nullptr, nullptr, 0 }
 
@@ -1066,6 +1068,7 @@ ThingTemplate::ThingTemplate() :
 	m_instanceScaleFuzziness = 0;
 	m_threatValue = 0;
 	m_maxSimultaneousOfType = 0;	// unlimited
+	m_loadPoints = -1;	// FORK derive from KindOf
   m_maxSimultaneousLinkKey = NAMEKEY_INVALID; // Not linked
   m_maxSimultaneousDeterminedBySuperweaponRestriction = false;
 	m_crusherLevel = 0;			//Unspecified, this object is unable to crush anything!
@@ -1489,6 +1492,24 @@ const AudioEventRTS *ThingTemplate::getPerUnitSound(const AsciiString& soundName
 	}
 
 	return &(it->second);
+}
+
+//-------------------------------------------------------------------------------------------------
+// FORK @feature 08/10/2026 Weight of this object against the per-player build cap (load points).
+// An INI "LoadPoints" value wins; otherwise: aircraft 4, other vehicles 3, infantry 1, structures 2, anything else 0.
+Int ThingTemplate::getLoadPoints() const
+{
+	if (m_loadPoints >= 0)
+		return m_loadPoints;
+	if (isKindOf(KINDOF_STRUCTURE))
+		return 2;
+	if (isKindOf(KINDOF_AIRCRAFT))
+		return 4;
+	if (isKindOf(KINDOF_VEHICLE))
+		return 3;
+	if (isKindOf(KINDOF_INFANTRY))
+		return 1;
+	return 0;
 }
 
 //-------------------------------------------------------------------------------------------------

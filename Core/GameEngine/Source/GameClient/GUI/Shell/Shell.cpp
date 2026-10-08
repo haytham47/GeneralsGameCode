@@ -30,6 +30,8 @@
 // INCLUDES ///////////////////////////////////////////////////////////////////////////////////////
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
+#include "Common/BenchMetrics.h"
+
 #include "Common/RandomValue.h"
 #include "GameClient/Shell.h"
 #include "GameClient/WindowLayout.h"
@@ -485,7 +487,8 @@ void Shell::showShell( Bool runInit )
 {
 	DEBUG_LOG(("Shell:showShell() - %s (%s)", TheGlobalData->m_initialFile.str(), (top())?top()->getFilename().str():"no top screen"));
 
-	if(!TheGlobalData->m_initialFile.isEmpty() || !TheGlobalData->m_simulateReplays.empty())
+	// FORK @feature 08/10/2026 The -bench mode never shows the shell.
+	if(!TheGlobalData->m_initialFile.isEmpty() || !TheGlobalData->m_simulateReplays.empty() || Bench::s_active)
 	{
 		return;
 	}
@@ -547,7 +550,7 @@ void Shell::showShell( Bool runInit )
 void Shell::showShellMap(Bool useShellMap )
 {
 	// we don't want any of this to show if we're loading straight into a file
-	if (TheGlobalData->m_initialFile.isNotEmpty() || !TheGameLogic || !TheGlobalData->m_simulateReplays.empty())
+	if (TheGlobalData->m_initialFile.isNotEmpty() || !TheGameLogic || !TheGlobalData->m_simulateReplays.empty() || Bench::s_active)
 		return;
 	if(useShellMap && TheGlobalData->m_shellMapOn)
 	{

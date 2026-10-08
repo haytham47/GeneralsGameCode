@@ -70,6 +70,14 @@
 #endif
 
 
+// FORK @feature 08/10/2026 Asks hybrid-GPU laptops (NVIDIA Optimus, AMD switchable graphics) to run the game
+// on the dedicated GPU instead of the integrated one. The drivers look for these exported symbols in the exe.
+extern "C"
+{
+	__declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001;
+	__declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
+}
+
 // GLOBALS ////////////////////////////////////////////////////////////////////
 HINSTANCE ApplicationHInstance = nullptr;  ///< our application instance
 HWND ApplicationHWnd = nullptr;  ///< our application window handle

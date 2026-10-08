@@ -41,6 +41,7 @@ static void drawFramerateBar();
 #include <time.h>
 
 // USER INCLUDES //////////////////////////////////////////////////////////////
+#include "Common/BenchMetrics.h"
 #include "Common/FramePacer.h"
 #include "Common/ThingFactory.h"
 #include "Common/GlobalData.h"
@@ -895,6 +896,9 @@ void W3DDisplay::init()
 			// TheSuperHackers @info Update the MSAA mode that was set as some GPU's may not support certain levels
 			// Texture filtering must also be updated after render device initialization
 			if (renderDeviceError == WW3D_ERROR_OK) {
+				// FORK @feature 08/10/2026 Records which GPU renders the game in the -bench results.
+				if (Bench::s_active)
+					Bench::setInfo("adapter", DX8Wrapper::Get_Current_Adapter_Identifier().Description);
 				TheWritableGlobalData->m_antiAliasLevel = (UnsignedInt)WW3D::Get_MSAA_Mode();
 				WW3D::Set_Texture_Filter(TheWritableGlobalData->m_textureFilteringMode);
 				TheWritableGlobalData->m_textureFilteringMode = WW3D::Get_Texture_Filter();

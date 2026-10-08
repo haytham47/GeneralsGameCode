@@ -466,6 +466,7 @@ public:
 	void requestSafePath( ObjectID repulsor1 );	///< computes path to attack the current target, returns false if no path
 
 	Bool isWaitingForPath() const {return m_waitingForPath;}
+	void queueForPathOrRetry();	///< FORK queue a path request, or retry later if the pathfind queue is full
 	Bool isAttackPath() const {return m_isAttackPath;} ///< True if we have a path to an attack location.
 	void cancelPath(); ///< Called if we no longer need the path.
 	Path* getPath() { return m_path; }				///< return the agent's current path

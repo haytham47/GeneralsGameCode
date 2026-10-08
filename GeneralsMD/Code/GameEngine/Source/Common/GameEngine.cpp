@@ -28,6 +28,9 @@
 
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
+#include "Common/BenchDriver.h"
+#include "Common/BenchMetrics.h"
+
 #include "Common/ActionManager.h"
 #include "Common/AudioAffect.h"
 #include "Common/BuildAssistant.h"
@@ -531,6 +534,9 @@ void GameEngine::init()
   startTime64 = endTime64;//Reset the clock ////////////////////////////////////////////////////////
 	DEBUG_LOG(("%s", Buf));////////////////////////////////////////////////////////////////////////////
 	#endif/////////////////////////////////////////////////////////////////////////////////////////////
+		// FORK @feature 08/10/2026 Bench runs never open the audio device (INI and options are loaded by now).
+		if (Bench::s_active)
+			TheWritableGlobalData->m_audioOn = FALSE;
 		initSubsystem(TheAudio,"TheAudio", createAudioManager(TheGlobalData->m_headless), nullptr);
 
 #if RTS_ZEROHOUR && RETAIL_COMPATIBLE_CRC
@@ -707,6 +713,9 @@ void GameEngine::init()
 
 		// load the initial shell screen
 		//TheShell->push( "Menus/MainMenu.wnd" );
+
+		// FORK @feature 08/10/2026 Starts the automated benchmark scenario (or writes the map list).
+		BenchDriver::onEngineInit();
 
 		// This allows us to run a map from the command line
 		if (TheGlobalData->m_initialFile.isEmpty() == FALSE)
@@ -897,6 +906,10 @@ void GameEngine::update()
 {
 	USE_PERF_TIMER(GameEngine_update)
 	{
+		// FORK @performance 08/10/2026 Measures the whole engine frame and the client update in -bench mode.
+		if (Bench::s_active)
+			Bench::beginSection(BENCH_FRAME_TOTAL);
+
 		{
 			// VERIFY CRC needs to be in this code block.  Please to not pull TheGameLogic->update() inside this block.
 			VERIFY_CRC
@@ -906,7 +919,12 @@ void GameEngine::update()
 			/// @todo Move audio init, update, etc, into GameClient update
 
 			TheAudio->UPDATE();
-			TheGameClient->UPDATE();
+			{
+				BenchScope benchClient(BENCH_CLIENT_UPDATE);
+				TheGameClient->UPDATE();
+			}
+			if (Bench::s_active)
+				Bench::addCounter(BENCHC_RENDER_FRAMES, 1);
 			TheMessageStream->propagateMessages();
 
 			if (TheNetwork != nullptr)
@@ -918,13 +936,26 @@ void GameEngine::update()
 		// TheSuperHackers @info Ignores frozen time because the script engine needs updating in the logic update regardless.
 		if (canUpdateGameLogic(FramePacer::IgnoreFrozenTime))
 		{
+			if (Bench::s_active)
+				BenchDriver::preLogicUpdate();
+
 			TheGameLogic->UPDATE();
 
 			if (!TheFramePacer->isTimeFrozen())
 			{
 				TheGameClient->step();
 			}
+
+			if (Bench::s_active)
+			{
+				Bench::endSection(BENCH_FRAME_TOTAL);
+				BenchDriver::postLogicUpdate();
+				return;
+			}
 		}
+
+		if (Bench::s_active)
+			Bench::endSection(BENCH_FRAME_TOTAL);
 	}
 }
 
