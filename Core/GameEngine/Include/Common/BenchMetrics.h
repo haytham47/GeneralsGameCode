@@ -52,9 +52,30 @@ enum BenchCounter
 	BENCH_COUNTER_COUNT
 };
 
+/// Pathfinder search kinds, measured separately in -bench mode (outermost search only).
+enum BenchSearchKind
+{
+	BENCH_SEARCH_FIND_PATH,
+	BENCH_SEARCH_CLOSEST_PATH,
+	BENCH_SEARCH_ATTACK_PATH,
+	BENCH_SEARCH_GROUND_PATH,
+	BENCH_SEARCH_MOVE_AWAY,
+	BENCH_SEARCH_PATCH_PATH,
+	BENCH_SEARCH_SAFE_PATH,
+	BENCH_SEARCH_PATH_COST,
+	BENCH_SEARCH_HIERARCHICAL,
+	BENCH_SEARCH_ADJUST_DEST,
+	BENCH_SEARCH_ADJUST_POSSIBLE,
+	BENCH_SEARCH_QUICK_EXISTS,
+	BENCH_SEARCH_SLOW_EXISTS,
+
+	BENCH_SEARCH_COUNT
+};
+
 namespace Bench
 {
 	extern Bool s_active; ///< TRUE when the exe runs in -bench mode; all probes are no-ops otherwise
+	extern Int s_experiment[4]; ///< TEMPORARY experiment knobs set by scenario keys experiment0..3 (0 = normal behaviour)
 
 	void setScenario(const char *path);
 	const char *getScenario();
@@ -75,11 +96,25 @@ namespace Bench
 	/// Logs every command the logic processes (messages.log), to compare runs and find divergence.
 	void logMessage(UnsignedInt logicFrame, Int type, Int playerIndex);
 	void setInfo(const char *key, const char *value);
+
+	void beginSearch(BenchSearchKind kind);
+	void endSearch(BenchSearchKind kind);
+	void addSearchCells(Int cells); ///< cells released by the current outermost search
 	void setInfoInt(const char *key, Int value);
 
 	/// Write frames.csv, summary.json and crc.log into the out dir. Returns FALSE if the files cannot be written.
 	Bool writeResults(Int exitCode, const char *error);
 }
+
+class BenchSearchScope
+{
+public:
+	BenchSearchScope(BenchSearchKind k) : m_kind(k) { if (Bench::s_active) Bench::beginSearch(m_kind); }
+	~BenchSearchScope() { if (Bench::s_active) Bench::endSearch(m_kind); }
+
+private:
+	BenchSearchKind m_kind;
+};
 
 class BenchScope
 {

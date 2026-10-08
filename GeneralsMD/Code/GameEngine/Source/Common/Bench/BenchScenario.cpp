@@ -20,6 +20,7 @@
 
 #include "PreRTS.h"
 
+#include "Common/BenchMetrics.h"
 #include "Common/BenchScenario.h"
 #include "GameNetwork/NetworkDefs.h"
 
@@ -176,6 +177,10 @@ Bool BenchScenario::parse(const char *path, AsciiString &error)
 		else if (key.compareNoCase("crcEvery") == 0) crcEvery = (UnsignedInt)atoi(value.str());
 		else if (key.compareNoCase("factions") == 0) splitList(value, slotFactions);
 		else if (key.compareNoCase("chokeWaypoints") == 0) splitList(value, chokeWaypoints);
+		else if (key.compareNoCase("experiment0") == 0) Bench::s_experiment[0] = atoi(value.str());
+		else if (key.compareNoCase("experiment1") == 0) Bench::s_experiment[1] = atoi(value.str());
+		else if (key.compareNoCase("experiment2") == 0) Bench::s_experiment[2] = atoi(value.str());
+		else if (key.compareNoCase("experiment3") == 0) Bench::s_experiment[3] = atoi(value.str());
 		else
 		{
 			error.format("line %d: unknown key '%s'", lineNo, key.str());

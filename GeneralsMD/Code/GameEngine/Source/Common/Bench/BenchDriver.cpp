@@ -535,6 +535,8 @@ void BenchDriver::onEngineInit()
 		Bench::setOutDir(dir.str());
 	}
 
+	Bench::setInfoInt("audio_on", TheGlobalData->m_audioOn ? 1 : 0);
+
 	if (Bench::getListMapsFile()[0] != '\0')
 	{
 		writeMapList(Bench::getListMapsFile());

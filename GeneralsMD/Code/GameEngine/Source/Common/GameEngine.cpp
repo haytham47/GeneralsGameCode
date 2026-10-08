@@ -534,6 +534,9 @@ void GameEngine::init()
   startTime64 = endTime64;//Reset the clock ////////////////////////////////////////////////////////
 	DEBUG_LOG(("%s", Buf));////////////////////////////////////////////////////////////////////////////
 	#endif/////////////////////////////////////////////////////////////////////////////////////////////
+		// FORK @feature 08/10/2026 Bench runs never open the audio device (INI and options are loaded by now).
+		if (Bench::s_active)
+			TheWritableGlobalData->m_audioOn = FALSE;
 		initSubsystem(TheAudio,"TheAudio", createAudioManager(TheGlobalData->m_headless), nullptr);
 
 #if RTS_ZEROHOUR && RETAIL_COMPATIBLE_CRC

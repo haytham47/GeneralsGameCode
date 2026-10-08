@@ -463,6 +463,11 @@ Int parseBench(char *args[], int num)
 		TheWritableGlobalData->m_playIntro = FALSE;
 		TheWritableGlobalData->m_playSizzle = FALSE;
 		TheWritableGlobalData->m_shellMapOn = FALSE;
+		// Bench runs need no sound; this also avoids depending on the audio device in unattended runs.
+		TheWritableGlobalData->m_audioOn = FALSE;
+		TheWritableGlobalData->m_speechOn = FALSE;
+		TheWritableGlobalData->m_soundsOn = FALSE;
+		TheWritableGlobalData->m_musicOn = FALSE;
 		TheWritableGlobalData->m_useFpsLimit = FALSE;
 
 		// Make benchmark runs possible while another client is running
@@ -496,6 +501,11 @@ Int parseBenchListMaps(char *args[], int num)
 		TheWritableGlobalData->m_playIntro = FALSE;
 		TheWritableGlobalData->m_playSizzle = FALSE;
 		TheWritableGlobalData->m_shellMapOn = FALSE;
+		// Bench runs need no sound; this also avoids depending on the audio device in unattended runs.
+		TheWritableGlobalData->m_audioOn = FALSE;
+		TheWritableGlobalData->m_speechOn = FALSE;
+		TheWritableGlobalData->m_soundsOn = FALSE;
+		TheWritableGlobalData->m_musicOn = FALSE;
 
 		rts::ClientInstance::setMultiInstance(TRUE);
 		rts::ClientInstance::skipPrimaryInstance();

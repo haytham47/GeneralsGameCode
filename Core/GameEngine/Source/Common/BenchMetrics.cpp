@@ -67,6 +67,36 @@ namespace
 	std::vector<BenchCRC> s_messages; // frame, (type << 8) | player
 	std::vector<BenchInfo> s_info;
 
+	struct BenchSearchStats
+	{
+		Int calls;
+		double totalMs;
+		double maxMs;
+		Int over10ms;
+		double cells;
+	};
+	BenchSearchStats s_search[BENCH_SEARCH_COUNT];
+	Int s_searchDepth = 0;
+	Int s_searchKind = -1;
+	LARGE_INTEGER s_searchStart;
+
+	const char *const s_searchNames[BENCH_SEARCH_COUNT] =
+	{
+		"find_path",
+		"closest_path",
+		"attack_path",
+		"ground_path",
+		"move_away",
+		"patch_path",
+		"safe_path",
+		"path_cost",
+		"hierarchical",
+		"adjust_dest",
+		"adjust_possible",
+		"quick_exists",
+		"slow_exists",
+	};
+
 	UnsignedInt s_wallStartMs = 0;
 	SIZE_T s_peakPrivateBytes = 0;
 	unsigned long long s_peakVirtualUsed = 0;
@@ -189,6 +219,7 @@ namespace
 namespace Bench
 {
 	Bool s_active = FALSE;
+	Int s_experiment[4] = { 0, 0, 0, 0 };
 
 	void setScenario(const char *path) { s_scenario = path ? path : ""; }
 	const char *getScenario() { return s_scenario.c_str(); }
@@ -217,6 +248,42 @@ namespace Bench
 	}
 
 	void addCounter(BenchCounter c, Int n) { s_counters[c] += n; }
+
+	void beginSearch(BenchSearchKind kind)
+	{
+		initFreq();
+		if (s_searchDepth++ == 0)
+		{
+			s_searchKind = kind;
+			QueryPerformanceCounter(&s_searchStart);
+		}
+	}
+
+	void endSearch(BenchSearchKind kind)
+	{
+		if (s_searchDepth <= 0)
+			return;
+		if (--s_searchDepth == 0)
+		{
+			LARGE_INTEGER now;
+			QueryPerformanceCounter(&now);
+			const double ms = (double)(now.QuadPart - s_searchStart.QuadPart) * 1000.0 / (double)s_freq.QuadPart;
+			BenchSearchStats &st = s_search[s_searchKind];
+			++st.calls;
+			st.totalMs += ms;
+			if (ms > st.maxMs)
+				st.maxMs = ms;
+			if (ms > 10.0)
+				++st.over10ms;
+			s_searchKind = -1;
+		}
+	}
+
+	void addSearchCells(Int cells)
+	{
+		if (s_searchKind >= 0)
+			s_search[s_searchKind].cells += cells;
+	}
 
 	void resetAccumulators()
 	{
@@ -383,6 +450,16 @@ namespace Bench
 				else
 					fprintf(f, "  \"%s\": \"%s\",\n", jsonEscape(s_info[i].key).c_str(), jsonEscape(s_info[i].value).c_str());
 			}
+
+			fprintf(f, "  \"searches\": {\n");
+			for (Int k = 0; k < BENCH_SEARCH_COUNT; ++k)
+			{
+				const BenchSearchStats &st = s_search[k];
+				fprintf(f, "    \"%s\": { \"calls\": %d, \"total_ms\": %.2f, \"mean_ms\": %.4f, \"max_ms\": %.2f, \"over_10ms\": %d, \"cells_per_call\": %.1f }%s\n",
+					s_searchNames[k], st.calls, st.totalMs, st.calls ? st.totalMs / st.calls : 0.0, st.maxMs, st.over10ms,
+					st.calls ? st.cells / st.calls : 0.0, (k + 1 < BENCH_SEARCH_COUNT) ? "," : "");
+			}
+			fprintf(f, "  },\n");
 
 			fprintf(f, "  \"sections\": {\n");
 			for (Int s = 0; s < BENCH_SECTION_COUNT; ++s)
