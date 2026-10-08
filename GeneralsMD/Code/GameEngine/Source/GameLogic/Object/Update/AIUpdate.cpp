@@ -512,8 +512,19 @@ void AIUpdateInterface::requestPath( Coord3D *destination, Bool isFinalGoal )
 		}
 		return;
 	}
-	TheAI->pathfinder()->queueForPath(getObject()->getID());
+	queueForPathOrRetry();
 
+}
+
+//-------------------------------------------------------------------------------------------------
+// FORK @bugfix 08/10/2026 Retries a path request that did not fit in the full pathfind queue half a second later.
+// Previously the request was silently dropped and the unit kept waiting for a path that never came (frozen unit).
+void AIUpdateInterface::queueForPathOrRetry()
+{
+	if (!TheAI->pathfinder()->queueForPath(getObject()->getID()))
+	{
+		setQueueForPathTime(LOGICFRAMES_PER_SECOND / 2);
+	}
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -536,7 +547,7 @@ void AIUpdateInterface::requestAttackPath( ObjectID victimID, const Coord3D* vic
 		setLocomotorGoalNone();
 		return;
 	}
-	TheAI->pathfinder()->queueForPath(getObject()->getID());
+	queueForPathOrRetry();
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -559,7 +570,7 @@ void AIUpdateInterface::requestApproachPath( Coord3D *destination )
 		setQueueForPathTime(2*LOGICFRAMES_PER_SECOND);
 		return;
 	}
-	TheAI->pathfinder()->queueForPath(getObject()->getID());
+	queueForPathOrRetry();
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -583,7 +594,7 @@ void AIUpdateInterface::requestSafePath( ObjectID repulsor )
 		setQueueForPathTime(2*LOGICFRAMES_PER_SECOND);
 		return;
 	}
-	TheAI->pathfinder()->queueForPath(getObject()->getID());
+	queueForPathOrRetry();
 }
 
 enum {WAYPOINT_PATH_LIMIT=1024};
@@ -1066,8 +1077,8 @@ UpdateSleepTime AIUpdateInterface::update()
 	{
 		if (now >= m_queueForPathFrame)
 		{
-			TheAI->pathfinder()->queueForPath(getObject()->getID());
 			setQueueForPathTime(0);
+			queueForPathOrRetry();
 		}
 		else
 		{
