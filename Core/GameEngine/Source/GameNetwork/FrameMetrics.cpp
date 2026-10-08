@@ -41,10 +41,20 @@ FrameMetrics::FrameMetrics()
 	m_lastFpsTimeThing = 0;
 	m_minimumCushion = 0;
 
+	// FORK @tweak 08/10/2026 Averages the frame rate over at most 8 seconds (retail INI: 30). The packet router sets the
+	// game speed from the slowest player's average, so a short window lets the game speed recover soon after a
+	// slow PC catches up instead of staying low for half a minute. Only the router's input changes; its decision is
+	// still sent to every player as a synchronized command.
+	m_fpsHistoryLength = TheGlobalData->m_networkFPSHistoryLength;
+	if (m_fpsHistoryLength > 8)
+		m_fpsHistoryLength = 8;
+	if (m_fpsHistoryLength < 1)
+		m_fpsHistoryLength = 1;
+
 	m_pendingLatencies = NEW time_t[MAX_FRAMES_AHEAD];
 	for(Int i = 0; i < MAX_FRAMES_AHEAD; i++)
 		m_pendingLatencies[i] = 0;
-	m_fpsList = NEW Real[TheGlobalData->m_networkFPSHistoryLength];
+	m_fpsList = NEW Real[m_fpsHistoryLength];
 	m_latencyList = NEW Real[TheGlobalData->m_networkLatencyHistoryLength];
 }
 
@@ -65,7 +75,7 @@ void FrameMetrics::init() {
 	m_minimumCushion = -1;
 
 	UnsignedInt i = 0;
-	for (; i < TheGlobalData->m_networkFPSHistoryLength; ++i) {
+	for (; i < m_fpsHistoryLength; ++i) {
 		m_fpsList[i] = 30.0;
 	}
 	m_fpsListIndex = 0;
@@ -86,13 +96,13 @@ void FrameMetrics::doPerFrameMetrics(UnsignedInt frame) {
 //		if ((m_fpsListIndex % 16) == 0) {
 //			DEBUG_LOG(("FrameMetrics::doPerFrameMetrics - adding %f to fps history. average before: %f ", m_fpsList[m_fpsListIndex], m_averageFps));
 //		}
-		m_averageFps -= ((m_fpsList[m_fpsListIndex])) / TheGlobalData->m_networkFPSHistoryLength; // subtract out the old value from the average.
+		m_averageFps -= ((m_fpsList[m_fpsListIndex])) / m_fpsHistoryLength; // subtract out the old value from the average.
 		m_fpsList[m_fpsListIndex] = TheDisplay->getAverageFPS();
 //		m_fpsList[m_fpsListIndex] = TheGameClient->getFrame() - m_fpsStartingFrame;
-		m_averageFps += ((Real)(m_fpsList[m_fpsListIndex])) / TheGlobalData->m_networkFPSHistoryLength; // add the new value to the average.
+		m_averageFps += ((Real)(m_fpsList[m_fpsListIndex])) / m_fpsHistoryLength; // add the new value to the average.
 //		DEBUG_LOG(("average after: %f", m_averageFps));
 		++m_fpsListIndex;
-		m_fpsListIndex %= TheGlobalData->m_networkFPSHistoryLength;
+		m_fpsListIndex %= m_fpsHistoryLength;
 		m_lastFpsTimeThing = curTime;
 	}
 
