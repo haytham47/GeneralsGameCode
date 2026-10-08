@@ -2,6 +2,7 @@
 set(COREI_GOOGLETEST_SRC
     GoogleTestMain.cpp
     GameEngine/Common/AsciiStringTest.cpp
+    GameEngine/GameNetwork/SlowestPlayerTest.cpp
     Libraries/Compression/CompressionManagerTest.cpp
 )
 

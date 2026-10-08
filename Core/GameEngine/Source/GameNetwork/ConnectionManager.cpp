@@ -592,9 +592,15 @@ Bool ConnectionManager::processNetCommand(NetCommandRef *ref) {
 			processTimeOutGameStart(msg);
 			return FALSE;
 
-		case NETCOMMANDTYPE_RUNAHEADMETRICS:
+		case NETCOMMANDTYPE_RUNAHEADMETRICS: {
 			processRunAheadMetrics((NetRunAheadMetricsCommandMsg *)msg);
-			return TRUE;
+			// FORK @feature 08/10/2026 Relays frame rate metrics to every peer so all players can see who is slowest.
+			// The metrics only feed the display and the packet router's existing run ahead calculation.
+			UnsignedByte relay = ref->getRelay();
+			relay = relay & (0xff ^ (1 << m_localSlot));
+			ref->setRelay(relay);
+			return FALSE;
+		}
 
 		case NETCOMMANDTYPE_KEEPALIVE:
 			return TRUE;
@@ -1461,6 +1467,17 @@ void ConnectionManager::updateRunAhead(Int oldRunAhead, Int frameRate, Bool didS
 
 			msg->detach();
 			msg2->detach();
+
+			// FORK @feature 08/10/2026 The packet router also shares its own frame rate with every peer for the slowest player display.
+			NetRunAheadMetricsCommandMsg *metrics = newInstance(NetRunAheadMetricsCommandMsg);
+			metrics->setPlayerID(m_localSlot);
+			if (DoesCommandRequireACommandID(metrics->getNetCommandType())) {
+				metrics->setID(GenerateNextCommandID());
+			}
+			metrics->setAverageLatency(m_latencyAverages[m_localSlot]);
+			metrics->setAverageFps(m_fpsAverages[m_localSlot]);
+			sendLocalCommand(metrics, 0xff ^ (1 << m_localSlot));
+			metrics->detach();
 		} else {
 			// We are not the packet router, send our metrics info to the packet router.
 			NetRunAheadMetricsCommandMsg *msg = newInstance(NetRunAheadMetricsCommandMsg);
@@ -1481,7 +1498,10 @@ void ConnectionManager::updateRunAhead(Int oldRunAhead, Int frameRate, Bool didS
 			} else {
 				//DEBUG_LOG(("ConnectionManager::updateRunAhead - average latency = %f, average fps = %d, didSelfSlug = false", m_frameMetrics.getAverageLatency(), m_frameMetrics.getAverageFPS()));
 			}
-			m_connections[m_packetRouterSlot]->sendNetCommandMsg(msg, 1 << m_packetRouterSlot);
+			// FORK @feature 08/10/2026 Asks the packet router to relay our metrics to every peer (it still processes them first),
+			// and keeps our own value for the slowest player display.
+			m_fpsAverages[m_localSlot] = m_frameMetrics.getAverageFPS();
+			m_connections[m_packetRouterSlot]->sendNetCommandMsg(msg, 0xff ^ (1 << m_localSlot));
 			msg->detach();
 		}
 		lasttimesent = curTime;
@@ -2442,10 +2462,10 @@ Int ConnectionManager::getSlotAverageFPS(Int slot) {
 	if ((slot < 0) || (slot >= MAX_SLOTS)) {
 		return -1;
 	}
-	if ((m_packetRouterSlot != m_localSlot) && (slot == m_localSlot)) {
-		// our framerate data isn't valid for other players unless we are the
-		// packet router, so don't fake someone out.
-		return -1;
+	// FORK @feature 08/10/2026 Every peer now knows every player's frame rate (metrics are relayed to all),
+	// including its own, so the local slot is no longer hidden from non-router players.
+	if (m_fpsAverages[slot] > 100) {
+		return 100;
 	}
 	return m_fpsAverages[slot];
 }

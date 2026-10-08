@@ -564,6 +564,7 @@ set(GAMEENGINE_SRC
     Include/GameNetwork/NetworkInterface.h
     Include/GameNetwork/networkutil.h
     Include/GameNetwork/RankPointValue.h
+    Include/GameNetwork/SlowestPlayer.h
     Include/GameNetwork/Transport.h
     Include/GameNetwork/udp.h
     Include/GameNetwork/User.h
