@@ -634,14 +634,13 @@ void PathfindCell::reverseInsertionSort(PathfindCellList& list)
 }
 
 /// put self on "open" list in ascending cost order, return new list
-void PathfindCell::putOnSortedOpenList( PathfindCellList &list )
+void PathfindCell::putOnSortedOpenList( PathfindOpenList &list )
 {
 #if RETAIL_COMPATIBLE_PATHFINDING
 	if (!s_useFixedPathfinding) {
 		forwardInsertionSortRetailCompatible(list);
 		return;
 	}
-#endif
 
 	// TheSuperHackers @performance Mauller 20/03/2026 Implement reverse insertion sorting.
 	// Long and complex paths often append PathfindCell's, with high total path costs, to the open list.
@@ -652,13 +651,25 @@ void PathfindCell::putOnSortedOpenList( PathfindCellList &list )
 	else {
 		forwardInsertionSort(list);
 	}
+#else
+	// FORK @performance 08/10/2026 Heap open list (same pop order as the sorted list, O(log n)).
+	m_info->m_open = true;
+	m_info->m_closed = false;
+	m_info->m_nextOpen = nullptr;
+	m_info->m_prevOpen = nullptr;
+	list.insert(this);
+#endif
 }
 
 /// remove self from "open" list
-void PathfindCell::removeFromOpenList( PathfindCellList &list )
+void PathfindCell::removeFromOpenList( PathfindOpenList &list )
 {
 	DEBUG_ASSERTCRASH(m_info, ("Has to have info."));
 	DEBUG_ASSERTCRASH(m_info->m_closed==FALSE && m_info->m_open==TRUE, ("Serious error - Invalid flags. jba"));
+#if !RETAIL_COMPATIBLE_PATHFINDING
+	// FORK @performance 08/10/2026 Heap open list.
+	list.remove(this);
+#else
 	if (m_info->m_nextOpen)
 		m_info->m_nextOpen->m_prevOpen = m_info->m_prevOpen;
 	else {
@@ -669,6 +680,7 @@ void PathfindCell::removeFromOpenList( PathfindCellList &list )
 		m_info->m_prevOpen->m_nextOpen = m_info->m_nextOpen;
 	else
 		list.m_head = getNextOpen();
+#endif
 
 	m_info->m_open = false;
 	m_info->m_nextOpen = nullptr;
@@ -677,8 +689,25 @@ void PathfindCell::removeFromOpenList( PathfindCellList &list )
 }
 
 /// remove all cells from "open" list
-Int PathfindCell::releaseOpenList( PathfindCellList &list )
+Int PathfindCell::releaseOpenList( PathfindOpenList &list )
 {
+#if !RETAIL_COMPATIBLE_PATHFINDING
+	// FORK @performance 08/10/2026 Heap open list: release every cell, in heap array order.
+	{
+		const Int heapCount = list.size();
+		for (Int i = 0; i < heapCount; ++i)
+		{
+			PathfindCell *cur = list.getAt(i);
+			cur->m_info->m_nextOpen = nullptr;
+			cur->m_info->m_prevOpen = nullptr;
+			cur->m_info->m_open = FALSE;
+			cur->m_info->m_heapIndex = -1;
+			cur->releaseInfo();
+		}
+		list.reset();
+		return heapCount;
+	}
+#else
 	Int count = 0;
 	while (list.m_head) {
 		count++;
@@ -710,6 +739,7 @@ Int PathfindCell::releaseOpenList( PathfindCellList &list )
 		cur->releaseInfo();
 	}
 	return count;
+#endif
 }
 
 /// remove all cells from "closed" list

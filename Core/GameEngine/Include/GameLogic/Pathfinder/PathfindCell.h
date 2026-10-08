@@ -22,6 +22,11 @@
 
 class Object;
 class PathfindCellList;
+#if RETAIL_COMPATIBLE_PATHFINDING
+typedef PathfindCellList PathfindOpenList;
+#else
+class PathfindOpenList;
+#endif
 
 typedef UnsignedShort zoneStorageType;
 
@@ -101,10 +106,10 @@ public:
 	void reverseInsertionSort(PathfindCellList& list);
 
 	/// put self on "open" list in ascending cost order
-	void putOnSortedOpenList( PathfindCellList &list );
+	void putOnSortedOpenList( PathfindOpenList &list );
 
 	/// remove self from "open" list
-	void removeFromOpenList( PathfindCellList &list );
+	void removeFromOpenList( PathfindOpenList &list );
 
 	/// put self on "closed" list, return new list
 	void putOnClosedList( PathfindCellList &list );
@@ -116,7 +121,13 @@ public:
 	static Int releaseClosedList( PathfindCellList &list );
 
 	/// remove all cells from closed list.
-	static Int releaseOpenList( PathfindCellList &list );
+	static Int releaseOpenList( PathfindOpenList &list );
+
+	// FORK @performance 08/10/2026 Bookkeeping for the binary heap open list.
+	Int getHeapIndex() const { return m_info->m_heapIndex; }
+	void setHeapIndex(Int index) { m_info->m_heapIndex = index; }
+	UnsignedInt getOpenSerial() const { return m_info->m_openSerial; }
+	void setOpenSerial(UnsignedInt serial) { m_info->m_openSerial = serial; }
 
 	PathfindCell *getNextOpen() {return m_info->m_nextOpen?m_info->m_nextOpen->m_cell: nullptr;}
 	PathfindCell *getPrevOpen() {return m_info->m_prevOpen?m_info->m_prevOpen->m_cell: nullptr;}

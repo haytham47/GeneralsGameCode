@@ -54,6 +54,10 @@ protected:
 
 	ObjectID m_obstacleID;	///< the object ID who overlaps this cell
 
+	// FORK @performance 08/10/2026 Position in the binary heap open list and insertion order for equal-cost ties.
+	Int m_heapIndex;
+	UnsignedInt m_openSerial;
+
 	UnsignedInt m_isFree:1;
 	UnsignedInt m_blockedByAlly:1;///< True if this cell is blocked by an allied unit.
 	UnsignedInt m_obstacleIsFence:1;///< True if occupied by a fence.

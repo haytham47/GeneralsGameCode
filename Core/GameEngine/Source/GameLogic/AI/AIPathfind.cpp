@@ -1003,8 +1003,15 @@ void Pathfinder::debugShowSearch(  Bool pathFound  )
 		addIcon(nullptr, 0, 0, color);	 // erase.
 	}
 
+#if RETAIL_COMPATIBLE_PATHFINDING
 	for( s = m_openList.getHead(); s; s=s->getNextOpen() )
 	{
+#else
+	// FORK @performance 08/10/2026 The open list is a heap; walk its array.
+	for( Int openIndex = 0; openIndex < m_openList.size(); ++openIndex )
+	{
+		s = m_openList.getAt(openIndex);
+#endif
 		// create objects to show path - they decay
 		RGBColor color;
 		color.red = color.green = 0;
@@ -1139,7 +1146,10 @@ void Pathfinder::cleanOpenAndClosedLists() {
 	m_cumulativeCellsAllocated += count;
 	// FORK @performance 08/10/2026 Counts all searched cells (queued and immediate searches) for the -bench mode.
 	if (Bench::s_active)
+	{
 		Bench::addCounter(BENCHC_CELLS, count);
+		Bench::addSearchCells(count);
+	}
 }
 
 
@@ -1629,6 +1639,8 @@ Bool Pathfinder::adjustToLandingDestination(Object *obj, Coord3D *dest)
  */
 Bool Pathfinder::adjustDestination(Object *obj, const LocomotorSet& locomotorSet, Coord3D *dest, const Coord3D *groupDest)
 {
+	// FORK @performance 08/10/2026 Measures this search kind in -bench mode.
+	BenchSearchScope benchSearch(BENCH_SEARCH_ADJUST_DEST);
 	if( obj->isKindOf(KINDOF_PROJECTILE) )
 	{
 		return true; // missiles can go wherever they want to. jba.
@@ -1822,6 +1834,8 @@ Bool Pathfinder::checkForPossible(Bool isCrusher, Int fromZone,  Bool center, co
 Bool Pathfinder::adjustToPossibleDestination(Object *obj, const LocomotorSet& locomotorSet,
 																						 Coord3D *dest)
 {
+	// FORK @performance 08/10/2026 Measures this search kind in -bench mode.
+	BenchSearchScope benchSearch(BENCH_SEARCH_ADJUST_POSSIBLE);
 	Int radius;
 	Bool center;
 	getRadiusAndCenter(obj, radius, center);
@@ -2205,7 +2219,7 @@ void Pathfinder::processPathfindQueue()
 
 	m_cumulativeCellsAllocated = 0;	// Number of pathfind cells examined.
 	Int pathsFound = 0;
-	while (m_cumulativeCellsAllocated < PATHFIND_CELLS_PER_FRAME &&
+	while (m_cumulativeCellsAllocated < PATHFIND_QUEUE_CELLS_PER_FRAME &&
 		m_queuePRTail!=m_queuePRHead) {
 		Object *obj = TheGameLogic->findObjectByID(m_queuedPathfindRequests[m_queuePRHead]);
 		m_queuedPathfindRequests[m_queuePRHead] = INVALID_ID;
@@ -2297,12 +2311,15 @@ struct ExamineCellsStruct
 	Int									radius;
 	const Object				*obj;
 	PathfindCell				*goalCell;
+	Int									cellCount;
+	Int									maxCells;
 };
 
 /*static*/ Int Pathfinder::examineCellsCallback(Pathfinder* pathfinder, PathfindCell* from, PathfindCell* to, Int to_x, Int to_y, void* userData)
 {
 	ExamineCellsStruct* d = (ExamineCellsStruct*)userData;
 	if (d->thePathfinder->m_isTunneling) return 1; // abort.
+	if (++d->cellCount > d->maxCells) return 1; // abort.
 	if (from && to) {
 			if (!d->thePathfinder->validMovementPosition( d->isCrusher, d->theLoco->getValidSurfaces(), to, from )) {
 				return 1;
@@ -2400,6 +2417,8 @@ Int Pathfinder::examineNeighboringCells(PathfindCell *parentCell, PathfindCell *
 		Bool isCrusher = obj ? obj->getCrusherLevel() > 0 : false;
 		if (attackDistance==NO_ATTACK && !m_isTunneling && !locomotorSet.isDownhillOnly() && goalCell) {
 			ExamineCellsStruct info;
+			info.cellCount = 0;
+			info.maxCells = PATHFIND_BEAM_MAX_CELLS;
 			info.thePathfinder = this;
 			info.theLoco = &locomotorSet;
 			info.centerInCell = centerInCell;
@@ -2635,6 +2654,8 @@ Int Pathfinder::examineNeighboringCells(PathfindCell *parentCell, PathfindCell *
 Path *Pathfinder::findPath( Object *obj, const LocomotorSet& locomotorSet, const Coord3D *from,
 													 const Coord3D *rawTo)
 {
+	// FORK @performance 08/10/2026 Measures this search kind in -bench mode.
+	BenchSearchScope benchSearch(BENCH_SEARCH_FIND_PATH);
 	if (!clientSafeQuickDoesPathExist(locomotorSet, from, rawTo)) {
 		return nullptr;
 	}
@@ -3245,6 +3266,8 @@ struct GroundCellsStruct
 Path *Pathfinder::findGroundPath( const Coord3D *from,
 													 const Coord3D *rawTo, Int pathDiameter, Bool crusher)
 {
+	// FORK @performance 08/10/2026 Measures this search kind in -bench mode.
+	BenchSearchScope benchSearch(BENCH_SEARCH_GROUND_PATH);
 	//CRCDEBUG_LOG(("Pathfinder::findGroundPath()"));
 #ifdef DEBUG_LOGGING
 	Int startTimeMS = ::GetTickCount();
@@ -3762,6 +3785,8 @@ Path *Pathfinder::findClosestHierarchicalPath( Bool isHuman, const LocomotorSet&
 Path *Pathfinder::internal_findHierarchicalPath( Bool isHuman, const LocomotorSurfaceTypeMask locomotorSurface, const Coord3D *from,
 													 const Coord3D *rawTo, Bool crusher, Bool closestOK)
 {
+	// FORK @performance 08/10/2026 Measures this search kind in -bench mode.
+	BenchSearchScope benchSearch(BENCH_SEARCH_HIERARCHICAL);
 	//CRCDEBUG_LOG(("Pathfinder::findGroundPath()"));
 #ifdef DEBUG_LOGGING
 	Int startTimeMS = ::GetTickCount();
@@ -4385,6 +4410,8 @@ Bool Pathfinder::clientSafeQuickDoesPathExist( const LocomotorSet& locomotorSet,
 																const Coord3D *from,
 																const Coord3D *to )
 {
+	// FORK @performance 08/10/2026 Measures this search kind in -bench mode.
+	BenchSearchScope benchSearch(BENCH_SEARCH_QUICK_EXISTS);
 	// See if terrain or building is blocking the destination.
 	PathfindLayerEnum destinationLayer = TheTerrainLogic->getLayerForDestination(to);
 	if (!validMovementPosition(false, destinationLayer, locomotorSet, to)) {
@@ -4503,6 +4530,8 @@ Bool Pathfinder::slowDoesPathExist( Object *obj,
 																const Coord3D *to,
 																ObjectID ignoreObject)
 {
+	// FORK @performance 08/10/2026 Measures this search kind in -bench mode.
+	BenchSearchScope benchSearch(BENCH_SEARCH_SLOW_EXISTS);
 	AIUpdateInterface *ai = obj->getAI();
 	if (ai==nullptr) {
 		return false;
@@ -4606,6 +4635,8 @@ void Pathfinder::tightenPath(Object *obj, const LocomotorSet& locomotorSet, Coor
 Int Pathfinder::checkPathCost(Object *obj, const LocomotorSet& locomotorSet, const Coord3D *from,
 		const Coord3D *rawTo)
 {
+	// FORK @performance 08/10/2026 Measures this search kind in -bench mode.
+	BenchSearchScope benchSearch(BENCH_SEARCH_PATH_COST);
 	//CRCDEBUG_LOG(("Pathfinder::checkPathCost()"));
 	if (m_isMapReady == false) return 0;
 	enum {MAX_COST = 0x7fff0000};
@@ -4865,6 +4896,8 @@ Int Pathfinder::checkPathCost(Object *obj, const LocomotorSet& locomotorSet, con
 Path *Pathfinder::findClosestPath( Object *obj, const LocomotorSet& locomotorSet, const Coord3D *from,
 																	Coord3D *rawTo, Bool blocked, Real pathCostMultiplier, Bool moveAllies)
 {
+	// FORK @performance 08/10/2026 Measures this search kind in -bench mode.
+	BenchSearchScope benchSearch(BENCH_SEARCH_CLOSEST_PATH);
 	//CRCDEBUG_LOG(("Pathfinder::findClosestPath()"));
 #ifdef DEBUG_LOGGING
 	Int startTimeMS = ::GetTickCount();
@@ -6497,6 +6530,8 @@ if (g_UT_startTiming) return false;
 Path *Pathfinder::getMoveAwayFromPath(Object* obj, Object *otherObj,
 											Path *pathToAvoid, Object *otherObj2, Path *pathToAvoid2)
 {
+	// FORK @performance 08/10/2026 Measures this search kind in -bench mode.
+	BenchSearchScope benchSearch(BENCH_SEARCH_MOVE_AWAY);
 	if (!m_isMapReady)
 		return nullptr; // Should always be ok.
 
@@ -6686,6 +6721,8 @@ Path *Pathfinder::getMoveAwayFromPath(Object* obj, Object *otherObj,
 Path *Pathfinder::patchPath( const Object *obj, const LocomotorSet& locomotorSet,
 		Path *originalPath, Bool blocked )
 {
+	// FORK @performance 08/10/2026 Measures this search kind in -bench mode.
+	BenchSearchScope benchSearch(BENCH_SEARCH_PATCH_PATH);
 	//CRCDEBUG_LOG(("Pathfinder::patchPath()"));
 #ifdef DEBUG_LOGGING
 	Int startTimeMS = ::GetTickCount();
@@ -6915,6 +6952,8 @@ Path *Pathfinder::patchPath( const Object *obj, const LocomotorSet& locomotorSet
 Path *Pathfinder::findAttackPath( const Object *obj, const LocomotorSet& locomotorSet, const Coord3D *from,
 		const Object *victim, const Coord3D* victimPos, const Weapon *weapon )
 {
+	// FORK @performance 08/10/2026 Measures this search kind in -bench mode.
+	BenchSearchScope benchSearch(BENCH_SEARCH_ATTACK_PATH);
 	if (!m_isMapReady)
 		return nullptr; // Should always be ok.
 
@@ -7274,6 +7313,8 @@ Path *Pathfinder::findAttackPath( const Object *obj, const LocomotorSet& locomot
 Path *Pathfinder::findSafePath( const Object *obj, const LocomotorSet& locomotorSet,
 		const Coord3D *from, const Coord3D* repulsorPos1, const Coord3D* repulsorPos2, Real repulsorRadius)
 {
+	// FORK @performance 08/10/2026 Measures this search kind in -bench mode.
+	BenchSearchScope benchSearch(BENCH_SEARCH_SAFE_PATH);
 	//CRCDEBUG_LOG(("Pathfinder::findSafePath()"));
 	if (m_isMapReady == false) return nullptr; // Should always be ok.
 #if defined(RTS_DEBUG)
