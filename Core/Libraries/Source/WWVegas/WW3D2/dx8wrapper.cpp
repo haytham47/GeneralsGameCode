@@ -98,6 +98,11 @@ static DX8FrameStatistics LastFrameStatistics;
 
 bool DX8Wrapper_IsWindowed = true;
 
+// Fullscreen is presented through a windowed device in a borderless window that covers the monitor,
+// instead of a D3D8 exclusive fullscreen device. Exclusive fullscreen can get stuck in an endless
+// lost device / Reset loop on Windows 11 with NVIDIA drivers (upstream issue #3049).
+bool DX8Wrapper_AllowBorderlessFullscreen = true;
+
 // FPU_PRESERVE
 int DX8Wrapper_PreserveFPU = 0;
 
@@ -117,6 +122,7 @@ int								DX8Wrapper::ResolutionHeight							= DEFAULT_RESOLUTION_HEIGHT;
 int								DX8Wrapper::BitDepth										= DEFAULT_BIT_DEPTH;
 int								DX8Wrapper::TextureBitDepth							= DEFAULT_TEXTURE_BIT_DEPTH;
 bool								DX8Wrapper::IsWindowed									= false;
+bool								DX8Wrapper::IsBorderlessFullscreen						= false;
 D3DFORMAT					DX8Wrapper::DisplayFormat	= D3DFMT_UNKNOWN;
 D3DMULTISAMPLE_TYPE DX8Wrapper::MultiSampleAntiAliasing	= DEFAULT_MSAA;
 
@@ -871,8 +877,35 @@ void DX8Wrapper::Get_Format_Name(unsigned int format, StringClass *tex_format)
 		}
 }
 
+static HMONITOR Get_Render_Device_Monitor(IDirect3D8* d3d, int device, HWND hwnd)
+{
+	HMONITOR monitor = nullptr;
+	if (d3d != nullptr && device >= 0) {
+		monitor = d3d->GetAdapterMonitor(device);
+	}
+	if (monitor == nullptr) {
+		monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY);
+	}
+	return monitor;
+}
+
 void DX8Wrapper::Resize_And_Position_Window()
 {
+	if (IsBorderlessFullscreen)
+	{
+		// Cover the whole monitor with the borderless window. Not topmost, so that other
+		// applications can come to the front when the user switches away from the game.
+		MONITORINFO mi = {sizeof(MONITORINFO)};
+		GetMonitorInfo(Get_Render_Device_Monitor(D3DInterface, CurRenderDevice, _Hwnd), &mi);
+		::SetWindowPos(_Hwnd, HWND_NOTOPMOST, mi.rcMonitor.left, mi.rcMonitor.top,
+			mi.rcMonitor.right - mi.rcMonitor.left, mi.rcMonitor.bottom - mi.rcMonitor.top, SWP_FRAMECHANGED);
+		::SetWindowPos(_Hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+
+		DEBUG_LOG(("Borderless fullscreen window positioned to x:%d y:%d, resized to w:%d h:%d",
+			mi.rcMonitor.left, mi.rcMonitor.top, mi.rcMonitor.right - mi.rcMonitor.left, mi.rcMonitor.bottom - mi.rcMonitor.top));
+		return;
+	}
+
 	// Get the current dimensions of the 'render area' of the window
 	RECT rect = { 0 };
 	::GetClientRect (_Hwnd, &rect);
@@ -951,6 +984,13 @@ bool DX8Wrapper::Set_Render_Device(int dev, int width, int height, int bits, int
 	if (bits != -1)		BitDepth = bits;
 	if (windowed != -1)	IsWindowed = (windowed != 0);
 	DX8Wrapper_IsWindowed = IsWindowed;
+	// The borderless window always covers the whole monitor. When the game resolution differs from the
+	// monitor resolution, the windowed Present scales the back buffer to the window, and Win32Mouse
+	// scales the mouse positions back from window to game coordinates.
+	IsBorderlessFullscreen = !IsWindowed && DX8Wrapper_AllowBorderlessFullscreen;
+
+	// The D3D device is windowed both in windowed mode and in borderless fullscreen.
+	const bool windowedDevice = IsWindowed || IsBorderlessFullscreen;
 
 	WWDEBUG_SAY(("Attempting Set_Render_Device: name: %s (%s:%s), width: %d, height: %d, windowed: %d",
 		_RenderDeviceNameTable[CurRenderDevice].str(),_RenderDeviceDescriptionTable[CurRenderDevice].Get_Driver_Name(),
@@ -962,7 +1002,7 @@ bool DX8Wrapper::Set_Render_Device(int dev, int width, int height, int bits, int
 	// the caption and edges of the window type you provide, so its important to
 	// push the client area to be the size you really want.
 	// if ( resize_window && windowed ) {
-	if (resize_window) {
+	if (resize_window || IsBorderlessFullscreen) {
 		Resize_And_Position_Window();
 	}
 #endif
@@ -976,12 +1016,12 @@ bool DX8Wrapper::Set_Render_Device(int dev, int width, int height, int bits, int
 
 	_PresentParameters.BackBufferWidth = ResolutionWidth;
 	_PresentParameters.BackBufferHeight = ResolutionHeight;
-	_PresentParameters.BackBufferCount = IsWindowed ? 1 : 2;
+	_PresentParameters.BackBufferCount = windowedDevice ? 1 : 2;
 
 	//I changed this to discard all the time (even when full-screen) since that the most efficient. 07-16-03 MW:
 	_PresentParameters.SwapEffect = D3DSWAPEFFECT_DISCARD;//IsWindowed ? D3DSWAPEFFECT_DISCARD : D3DSWAPEFFECT_FLIP;		// Shouldn't this be D3DSWAPEFFECT_FLIP?
 	_PresentParameters.hDeviceWindow = _Hwnd;
-	_PresentParameters.Windowed = IsWindowed;
+	_PresentParameters.Windowed = windowedDevice;
 
 	_PresentParameters.EnableAutoDepthStencil = TRUE;				// Driver will attempt to match Z-buffer depth
 	_PresentParameters.Flags=0;											// We're not going to lock the backbuffer
@@ -994,7 +1034,7 @@ bool DX8Wrapper::Set_Render_Device(int dev, int width, int height, int bits, int
 	** - if in windowed mode, the backbuffer must use the current display format.
 	** - the depth buffer must use
 	*/
-	if (IsWindowed) {
+	if (windowedDevice) {
 
 		D3DDISPLAYMODE desktop_mode;
 		::ZeroMemory(&desktop_mode, sizeof(D3DDISPLAYMODE));
@@ -1072,7 +1112,7 @@ bool DX8Wrapper::Set_Render_Device(int dev, int width, int height, int bits, int
 			CurRenderDevice,
 			D3DDEVTYPE_HAL,
 			_PresentParameters.BackBufferFormat,
-			IsWindowed,
+			windowedDevice,
 			MultiSampleAntiAliasing
 		);
 
@@ -1080,7 +1120,7 @@ bool DX8Wrapper::Set_Render_Device(int dev, int width, int height, int bits, int
 			CurRenderDevice,
 			D3DDEVTYPE_HAL,
 			_PresentParameters.AutoDepthStencilFormat,
-			IsWindowed,
+			windowedDevice,
 			MultiSampleAntiAliasing
 		);
 
@@ -1186,6 +1226,11 @@ void DX8Wrapper::Set_Swap_Interval(int swap)
 		case 2: _PresentParameters.FullScreen_PresentationInterval = D3DPRESENT_INTERVAL_TWO; break;
 		case 3: _PresentParameters.FullScreen_PresentationInterval = D3DPRESENT_INTERVAL_THREE; break;
 		default: _PresentParameters.FullScreen_PresentationInterval = D3DPRESENT_INTERVAL_ONE ; break;
+	}
+
+	// A windowed device requires the default presentation interval, otherwise Reset fails.
+	if (_PresentParameters.Windowed) {
+		_PresentParameters.FullScreen_PresentationInterval = D3DPRESENT_INTERVAL_DEFAULT;
 	}
 
 	WWDEBUG_SAY(("DX8Wrapper::Set_Swap_Interval is resetting the device."));
@@ -1726,7 +1771,7 @@ void DX8Wrapper::Flip_To_Primary()
 	// If we are fullscreen and the current frame is odd then we need
 	// to force a page flip to ensure that the first buffer in the flipping
 	// chain is the one visible.
-	if (!IsWindowed) {
+	if (!IsWindowed && !IsBorderlessFullscreen) {
 		DX8_Assert();
 
 		int numBuffers = (_PresentParameters.BackBufferCount + 1);

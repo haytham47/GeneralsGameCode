@@ -283,6 +283,7 @@ public:
 
 	static bool Is_Device_Lost() { return IsDeviceLost; }
 	static bool Is_Initted() { return IsInitted; }
+	static bool Is_Borderless_Fullscreen() { return IsBorderlessFullscreen; }
 
 	static bool Has_Stencil ();
 	static void Get_Format_Name(unsigned int format, StringClass *tex_format);
@@ -645,6 +646,7 @@ protected:
 	static int								BitDepth;
 	static int								TextureBitDepth;
 	static bool								IsWindowed;
+	static bool								IsBorderlessFullscreen;	///< fullscreen presented through a windowed device
 	static D3DFORMAT					DisplayFormat;
 	static D3DMULTISAMPLE_TYPE	MultiSampleAntiAliasing;
 

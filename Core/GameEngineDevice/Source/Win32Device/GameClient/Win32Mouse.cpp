@@ -32,6 +32,7 @@
 #include "Common/Debug.h"
 #include "Common/GlobalData.h"
 #include "Common/LocalFileSystem.h"
+#include "GameClient/Display.h"
 #include "GameClient/GameClient.h"
 #include "Win32Device/GameClient/Win32Mouse.h"
 #include "WinMain.h"
@@ -232,6 +233,23 @@ void Win32Mouse::translateEvent( UnsignedInt eventIndex, MouseIO *result )
 
 		}
 
+	}
+
+	// In borderless fullscreen the back buffer is scaled to the window when the game resolution
+	// differs from the monitor resolution, so scale the window position back to game coordinates.
+	if (TheDisplay != nullptr)
+	{
+		RECT rect;
+		if (::GetClientRect(ApplicationHWnd, &rect) && rect.right > 0 && rect.bottom > 0)
+		{
+			const Int displayWidth = TheDisplay->getWidth();
+			const Int displayHeight = TheDisplay->getHeight();
+			if (rect.right != displayWidth || rect.bottom != displayHeight)
+			{
+				result->pos.x = (Int)result->pos.x * displayWidth / rect.right;
+				result->pos.y = (Int)result->pos.y * displayHeight / rect.bottom;
+			}
+		}
 	}
 
 }

@@ -497,7 +497,9 @@ void W3DMouse::draw()
 				POINT ptCursor;
 
 				GetCursorPos( &ptCursor );
-				ScreenToClient( ApplicationHWnd, &ptCursor );
+				// A windowed device, as used for borderless fullscreen, takes the cursor position in screen coordinates.
+				if (!DX8Wrapper::Is_Borderless_Fullscreen())
+					ScreenToClient( ApplicationHWnd, &ptCursor );
 				m_pDev->SetCursorPosition( ptCursor.x, ptCursor.y, D3DCURSOR_IMMEDIATE_UPDATE);
 			}
 			//Check if animated cursor and new frame

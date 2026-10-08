@@ -381,6 +381,15 @@ Int parseNoWin(char *args[], int)
 	return 1;
 }
 
+Int parseExclusiveFullscreen(char *args[], int)
+{
+	extern bool DX8Wrapper_AllowBorderlessFullscreen;
+	TheWritableGlobalData->m_windowed = false;
+	DX8Wrapper_AllowBorderlessFullscreen = false;
+
+	return 1;
+}
+
 Int parseFullVersion(char *args[], int num)
 {
 	if (TheVersion && num > 1)
@@ -1165,6 +1174,10 @@ static CommandLineParam paramsForStartup[] =
 {
 	{ "-win", parseWin },
 	{ "-fullscreen", parseNoWin },
+
+	// Fullscreen uses a borderless window that covers the monitor by default.
+	// This restores the original D3D8 exclusive fullscreen mode.
+	{ "-exclusivefullscreen", parseExclusiveFullscreen },
 
 	// TheSuperHackers @feature helmutbuhler 11/04/2025
 	// This runs the game without a window, graphics, input and audio. You can combine this with -replay
