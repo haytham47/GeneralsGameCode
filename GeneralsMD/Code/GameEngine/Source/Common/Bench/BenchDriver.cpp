@@ -61,6 +61,8 @@ namespace
 	Bool s_finished = FALSE;
 	Int s_exitCode = 0;
 	UnsignedInt s_setupFrame = 0;
+	UnsignedInt s_updatesBeforeSetup = 0;
+	const UnsignedInt MAX_UPDATES_BEFORE_SETUP = 3000; ///< a game that does not start within this many updates fails the run
 
 	Player *s_players[MAX_SLOTS];
 	Coord3D s_start[MAX_SLOTS];
@@ -375,6 +377,8 @@ namespace
 			}
 		}
 
+		// Loading and setup work is not part of the measured frames.
+		Bench::resetAccumulators();
 		s_setupDone = TRUE;
 	}
 
@@ -565,7 +569,16 @@ void BenchDriver::preLogicUpdate()
 		msg = next;
 	}
 
-	if (s_finished || !TheGameLogic->isInGame() || TheGameLogic->isInShellGame())
+	if (s_finished)
+		return;
+
+	if (!s_setupDone && ++s_updatesBeforeSetup > MAX_UPDATES_BEFORE_SETUP)
+	{
+		fail("the bench game did not start");
+		return;
+	}
+
+	if (!TheGameLogic->isInGame() || TheGameLogic->isInShellGame())
 		return;
 
 	if (!s_setupDone)

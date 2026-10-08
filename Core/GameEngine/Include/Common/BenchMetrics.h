@@ -66,6 +66,7 @@ namespace Bench
 	void beginSection(BenchSection s);
 	void endSection(BenchSection s);
 	void addCounter(BenchCounter c, Int n);
+	void resetAccumulators(); ///< drop timings and counters gathered so far in the current row
 	void setCounter(BenchCounter c, Int n);
 
 	/// Close the current row. Called once per logic frame.

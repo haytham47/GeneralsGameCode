@@ -96,6 +96,12 @@ Bool BenchScenario::parse(const char *path, AsciiString &error)
 
 		if (text.getCharAt(0) == '[')
 		{
+			if (text.getLength() < 3 || text.getCharAt(text.getLength() - 1) != ']')
+			{
+				error.format("line %d: expected [FactionName]", lineNo);
+				fclose(f);
+				return FALSE;
+			}
 			AsciiString faction = text;
 			faction.removeLastChar();
 			AsciiString inner(faction.str() + 1);
@@ -201,6 +207,12 @@ Bool BenchScenario::parse(const char *path, AsciiString &error)
 			error.format("faction '%s' has no [section]", slotFactions[i].str());
 			return FALSE;
 		}
+	}
+	// Negative numbers parsed into unsigned fields wrap to huge values; reject them.
+	if (frames > 10000000u || waveEvery > 10000000u || orderEvery > 10000000u || structureEvery > 10000000u || crcEvery > 10000000u)
+	{
+		error = "a frame count is negative or too large";
+		return FALSE;
 	}
 	if (frames < 30 || waveEvery == 0 || orderEvery == 0 || structureEvery == 0 || groupSize < 1 || crcEvery == 0)
 	{

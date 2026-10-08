@@ -217,6 +217,14 @@ namespace Bench
 	}
 
 	void addCounter(BenchCounter c, Int n) { s_counters[c] += n; }
+
+	void resetAccumulators()
+	{
+		for (Int i = 0; i < BENCH_SECTION_COUNT; ++i)
+			s_accum[i] = 0.0;
+		for (Int i = 0; i < BENCH_COUNTER_COUNT; ++i)
+			s_counters[i] = 0;
+	}
 	void setCounter(BenchCounter c, Int n) { s_counters[c] = n; }
 
 	void endFrame(UnsignedInt logicFrame)
