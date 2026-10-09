@@ -81,6 +81,23 @@ Limits how much each player can own, so very large late-game armies cannot slow 
   bring them back under it.
 - *HUD:* `Cap used/cap` in the top-left corner, shown whenever a cap is on (even with the latency counter turned off).
 
+**Superweapons option** (LAN lobby and skirmish)
+
+- The **Superweapons** box replaces the old "Limit Superweapons" check box: **Unlimited**, **Limit 1** (the retail
+  limit, one of each type) or **Disabled**.
+- *Disabled:* Particle Cannon, Nuclear Missile and SCUD Storm (every general's version) can still be built and
+  upgraded, but they never fire, not for players, the AI or map scripts. Their button stays greyed, there are no
+  countdown timers and no "superweapon detected/ready" announcements. The limit of one per type does not apply.
+- The skirmish AI still builds them (wasted money for it).
+
+**General's points rate** (LAN lobby, off by default)
+
+- The host picks **Gen. Points** in the LAN lobby: 1x, 0.75x, 0.5x, 0.33x, 0.25x or 0.1x. It slows the general's
+  rank (skill) points earned from kills and unit abilities; unit veterancy is unchanged. Points granted by map
+  scripts are not scaled. Fractions carry over, so at 0.1x ten kills worth 1 point give 1 point.
+- The choice is kept in the host's `Options.ini` (`GeneralPointsRate`, in percent), which skirmish uses too, like the
+  build cap. The superweapons choice is kept there as well (`SuperweaponsOff`).
+
 **Display**
 - Fullscreen uses a borderless window by default, which avoids the D3D8 device-loss loop when switching windows.
   Start with `-exclusivefullscreen` to get the original exclusive fullscreen mode.
@@ -96,7 +113,8 @@ Limits how much each player can own, so very large late-game armies cannot slow 
 
 ### Compatibility notes
 - Replays recorded with retail *Zero Hour* or with older builds of this fork do not play back correctly (paths differ).
-- Save games keep the same format. A build cap is not stored in save games, so a loaded skirmish plays without one.
+- Save games keep the same format. The build cap, disabled superweapons and the general's points rate are not stored
+  in save games, so a loaded skirmish plays without them.
 - Every PC also needs the Microsoft Visual C++ 2015-2022 x86 runtime.
 
 ### Installing this fork for a LAN game

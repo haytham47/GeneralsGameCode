@@ -4239,6 +4239,9 @@ void ScriptActions::doSkirmishFireSpecialPowerAtMostCost( const AsciiString &pla
 	const SpecialPowerTemplate *power = TheSpecialPowerStore->findSpecialPowerTemplate(specialPower);
 	if (power==nullptr)
 		return;
+	// FORK @feature 09/10/2026 A disabled superweapon cannot fire: skip the whole-map target search.
+	if (TheGameLogic->isSuperweaponBlocked(power))
+		return;
 	Real radius = 50.0f;
 	if (power->getRadiusCursorRadius()>radius) {
 		radius = power->getRadiusCursorRadius();

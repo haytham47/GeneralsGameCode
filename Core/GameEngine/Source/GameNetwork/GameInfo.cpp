@@ -318,6 +318,8 @@ void GameInfo::reset()
 	m_mapSize = 0;
   m_superweaponRestriction = 0;
   m_loadCap = 0; // FORK @feature 08/10/2026 build cap off by default
+  m_superweaponsDisabled = FALSE; // FORK @feature 09/10/2026 superweapons fire normally by default
+  m_generalPointsRate = 100; // FORK @feature 09/10/2026 general's points at the normal rate by default
   m_startingCash = TheGlobalData->m_defaultStartingCash;
 
 	for (Int i=0; i<MAX_SLOTS; ++i)
@@ -1001,6 +1003,17 @@ static AsciiString buildGameInfoAsciiString(const GameInfo& game, const AsciiStr
 		loadCapString.format("LC=%u;", game.getLoadCap());
 		optionsString.concat(loadCapString);
 	}
+	// FORK @feature 09/10/2026 Disabled superweapons and a slower general's points rate travel the same way (only when set).
+	if (game.getSuperweaponsDisabled())
+	{
+		optionsString.concat("NS=1;");
+	}
+	if (game.getGeneralPointsRate() != 100)
+	{
+		AsciiString rateString;
+		rateString.format("GR=%u;", game.getGeneralPointsRate());
+		optionsString.concat(rateString);
+	}
 #endif
 
 	//add player info for each slot
@@ -1138,6 +1151,8 @@ Bool ParseAsciiStringToGameInfo(GameInfo *game, AsciiString options)
 	Bool sawStartingCash = FALSE;
 	Bool sawOldFactions = FALSE;
 	UnsignedInt loadCap = 0; // FORK build cap, off unless the options say otherwise
+	Bool superweaponsDisabled = FALSE; // FORK @feature 09/10/2026 superweapons fire unless the options say otherwise
+	UnsignedInt generalPointsRate = 100; // FORK @feature 09/10/2026 normal general's points rate unless the options say otherwise
 
 	//DEBUG_LOG(("Saw options of %s", options.str()));
 	DEBUG_LOG(("ParseAsciiStringToGameInfo - parsing [%s]", options.str()));
@@ -1246,6 +1261,18 @@ Bool ParseAsciiStringToGameInfo(GameInfo *game, AsciiString options)
     {
       // FORK @feature 08/10/2026 Per-player build cap in load points.
       loadCap = (UnsignedInt)strtoul( val.str(), nullptr, 10 );
+    }
+    else if (key.compare("NS") == 0 )
+    {
+      // FORK @feature 09/10/2026 Superweapons can be built but never fire.
+      superweaponsDisabled = ( atoi( val.str() ) != 0 );
+    }
+    else if (key.compare("GR") == 0 )
+    {
+      // FORK @feature 09/10/2026 General's points rate in percent; anything out of range means the normal rate.
+      generalPointsRate = (UnsignedInt)strtoul( val.str(), nullptr, 10 );
+      if (generalPointsRate < 1 || generalPointsRate > 100)
+        generalPointsRate = 100;
     }
     else if (key.compare("O") == 0 )
     {
@@ -1619,6 +1646,8 @@ Bool ParseAsciiStringToGameInfo(GameInfo *game, AsciiString options)
 		game->setUseStats(useStats);
 		game->setSuperweaponRestriction(restriction);
 		game->setLoadCap(loadCap);
+		game->setSuperweaponsDisabled(superweaponsDisabled); // FORK @feature 09/10/2026
+		game->setGeneralPointsRate(generalPointsRate); // FORK @feature 09/10/2026
 		game->setStartingCash(startingCash);
 		game->setOldFactionsOnly(oldFactionsOnly);
 

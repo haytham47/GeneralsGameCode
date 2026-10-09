@@ -45,6 +45,26 @@ void PopulateLoadCapComboBox(GameWindow *comboBox, GameInfo *myGame);
 void SelectLoadCapComboBox(GameWindow *comboBox, UnsignedInt loadCap);
 UnsignedInt GetLoadCapComboBoxSelection(GameWindow *comboBox);
 
+// FORK @feature 09/10/2026 Generic runtime lobby combo (label + combo box), Superweapons and General's points selectors.
+GameWindow *CreateLobbyComboGadgets(GameWindow *templateComboBox, const char *templateLabelText, const char *comboBoxName,
+																		const wchar_t *labelText, const wchar_t *tooltipText,
+																		Int labelLeft, Int labelRight, Int comboLeft, Int comboRight, Int top, Int bottom);
+UnsignedInt GetComboBoxSelectedItemData(GameWindow *comboBox, UnsignedInt defaultData);
+void ShrinkWindowTopToLayoutY(GameWindow *window, Int layoutTop); ///< moves the top edge down to y of the 800x600 layout, bottom stays
+enum
+{
+	SUPERWEAPONS_UNLIMITED = 0,	///< superweapons as usual
+	SUPERWEAPONS_LIMITED,				///< retail "Limit Superweapons": one per type
+	SUPERWEAPONS_DISABLED,			///< can be built and upgraded, never fire
+	SUPERWEAPONS_MODE_COUNT
+};
+Int GetSuperweaponsMode(const GameInfo *myGame);
+void SetSuperweaponsMode(GameInfo *myGame, Int mode);
+void PopulateSuperweaponsComboBox(GameWindow *comboBox, GameInfo *myGame);
+void SelectSuperweaponsComboBox(GameWindow *comboBox, const GameInfo *myGame);
+void PopulateGeneralPointsRateComboBox(GameWindow *comboBox, GameInfo *myGame);
+void SelectGeneralPointsRateComboBox(GameWindow *comboBox, UnsignedInt rate);
+
 void EnableSlotListUpdates( Bool val );
 Bool AreSlotListUpdatesEnabled();
 

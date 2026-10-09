@@ -433,6 +433,17 @@ static GameWindow *findStaticTextByLabel( GameWindow *parent, const char *label 
 GameWindow *CreateLoadCapGadgets(GameWindow *templateComboBox, const char *templateLabelText, const char *comboBoxName,
 																 Int labelLeft, Int labelRight, Int comboLeft, Int comboRight, Int top, Int bottom)
 {
+	return CreateLobbyComboGadgets( templateComboBox, templateLabelText, comboBoxName, L"Build Cap:",
+		L"Build cap per player in load points (infantry 1, structure 2, vehicle 3, aircraft 4). "
+		L"The total of all players is split by faction: USA 75%, China 70%, GLA 100%.",
+		labelLeft, labelRight, comboLeft, comboRight, top, bottom );
+}
+
+// FORK @feature 09/10/2026 Any lobby combo box with a label, made like the build cap one.
+GameWindow *CreateLobbyComboGadgets(GameWindow *templateComboBox, const char *templateLabelText, const char *comboBoxName,
+																		const wchar_t *labelText, const wchar_t *tooltipText,
+																		Int labelLeft, Int labelRight, Int comboLeft, Int comboRight, Int top, Int bottom)
+{
 	if( !templateComboBox || !comboBoxName )
 		return nullptr;
 
@@ -444,8 +455,7 @@ GameWindow *CreateLoadCapGadgets(GameWindow *templateComboBox, const char *templ
 	if( existing )
 		return existing;
 
-	const UnicodeString tooltip = L"Build cap per player in load points (infantry 1, structure 2, vehicle 3, aircraft 4). "
-		L"The total of all players is split by faction: USA 75%, China 70%, GLA 100%.";
+	const UnicodeString tooltip = tooltipText ? tooltipText : L"";
 	Int x, y, width, height;
 
 	// label, copied from the label next to the template combo box
@@ -471,12 +481,12 @@ GameWindow *CreateLoadCapGadgets(GameWindow *templateComboBox, const char *templ
 		if( label )
 		{
 			label->winSetOwner( templateLabel->winGetOwner() );
-			GadgetStaticTextSetText( label, UnicodeString( L"Build Cap:" ) );
+			GadgetStaticTextSetText( label, UnicodeString( labelText ? labelText : L"" ) );
 		}
 	}
 	else
 	{
-		DEBUG_LOG(( "CreateLoadCapGadgets: no '%s' label next to the template combo box, the cap has no label", templateLabelText ));
+		DEBUG_LOG(( "CreateLobbyComboGadgets: no '%s' label next to the template combo box, '%s' has no label", templateLabelText, comboBoxName ));
 	}
 
 	// combo box, copied from the template combo box (same steps as the .wnd loader)
@@ -616,6 +626,139 @@ UnsignedInt GetLoadCapComboBoxSelection(GameWindow *comboBox)
 	if( selIndex < 0 )
 		return 0;
 	return (UnsignedInt)GadgetComboBoxGetItemData( comboBox, selIndex );
+}
+
+// -----------------------------------------------------------------------------
+// FORK @feature 09/10/2026 Superweapons selector (replaces the "Limit Superweapons" check box) and the general's
+// points rate selector. The superweapons mode maps onto two game options: the old restriction (limit 1 per type)
+// and the new "disabled" flag (built and upgraded, never fired); disabling also lifts the limit.
+// -----------------------------------------------------------------------------
+static const wchar_t *s_superweaponsModeNames[SUPERWEAPONS_MODE_COUNT] = { L"Unlimited", L"Limit 1", L"Disabled" };
+static const UnsignedInt s_generalPointsRateChoices[] = { 100, 75, 50, 33, 25, 10 };
+
+static Bool selectComboBoxByItemData( GameWindow *comboBox, UnsignedInt data )
+{
+	const Int itemCount = GadgetComboBoxGetLength( comboBox );
+	for( Int index = 0; index < itemCount; ++index )
+	{
+		if( (UnsignedInt)GadgetComboBoxGetItemData( comboBox, index ) == data )
+		{
+			GadgetComboBoxSetSelectedPos( comboBox, index, TRUE );
+			return TRUE;
+		}
+	}
+	return FALSE;
+}
+
+// Makes room for a runtime row above a window: its top edge moves down to layoutTop (800x600 layout), the bottom
+// stays. Does nothing when the window already starts there (the layout may be shown again without being reloaded).
+void ShrinkWindowTopToLayoutY(GameWindow *window, Int layoutTop)
+{
+	if( !window )
+		return;
+
+	Int x, y, width, height;
+	window->winGetPosition( &x, &y );
+	window->winGetSize( &width, &height );
+
+	Int parentX = 0;
+	Int parentY = 0;
+	if( window->winGetParent() )
+		window->winGetParent()->winGetScreenPosition( &parentX, &parentY );
+
+	const Int newTop = (Int)((Real)layoutTop * (Real)TheDisplay->getHeight() / 600.0f) - parentY;
+	if( y >= newTop || height <= newTop - y )
+		return;
+
+	window->winSetPosition( x, newTop );
+	window->winSetSize( width, height - (newTop - y) );
+}
+
+UnsignedInt GetComboBoxSelectedItemData(GameWindow *comboBox, UnsignedInt defaultData)
+{
+	Int selIndex = -1;
+	if( comboBox )
+		GadgetComboBoxGetSelectedPos( comboBox, &selIndex );
+	if( selIndex < 0 )
+		return defaultData;
+	return (UnsignedInt)GadgetComboBoxGetItemData( comboBox, selIndex );
+}
+
+Int GetSuperweaponsMode(const GameInfo *myGame)
+{
+	if( !myGame )
+		return SUPERWEAPONS_UNLIMITED;
+	if( myGame->getSuperweaponsDisabled() )
+		return SUPERWEAPONS_DISABLED;
+	return myGame->getSuperweaponRestriction() != 0 ? SUPERWEAPONS_LIMITED : SUPERWEAPONS_UNLIMITED;
+}
+
+void SetSuperweaponsMode(GameInfo *myGame, Int mode)
+{
+	if( !myGame )
+		return;
+	myGame->setSuperweaponsDisabled( mode == SUPERWEAPONS_DISABLED );
+	myGame->setSuperweaponRestriction( mode == SUPERWEAPONS_LIMITED ? 1 : 0 );
+}
+
+void PopulateSuperweaponsComboBox(GameWindow *comboBox, GameInfo *myGame)
+{
+	if( !comboBox )
+		return;
+
+	GadgetComboBoxReset( comboBox );
+	const Color color = comboBox->winGetEnabled() ? comboBox->winGetEnabledTextColor() : comboBox->winGetDisabledTextColor();
+	for( Int mode = 0; mode < SUPERWEAPONS_MODE_COUNT; ++mode )
+	{
+		Int newIndex = GadgetComboBoxAddEntry( comboBox, UnicodeString( s_superweaponsModeNames[mode] ), color );
+		GadgetComboBoxSetItemData( comboBox, newIndex, (void *)mode );
+	}
+	SelectSuperweaponsComboBox( comboBox, myGame );
+}
+
+void SelectSuperweaponsComboBox(GameWindow *comboBox, const GameInfo *myGame)
+{
+	if( comboBox )
+		selectComboBoxByItemData( comboBox, (UnsignedInt)GetSuperweaponsMode( myGame ) );
+}
+
+static UnicodeString formatGeneralPointsRateForComboBox( UnsignedInt rate )
+{
+	UnicodeString rtn;
+	if( rate % 100 == 0 )
+		rtn.format( L"%ux", rate / 100 );
+	else if( rate % 10 == 0 )
+		rtn.format( L"0.%ux", rate / 10 );
+	else
+		rtn.format( L"0.%02ux", rate );
+	return rtn;
+}
+
+void PopulateGeneralPointsRateComboBox(GameWindow *comboBox, GameInfo *myGame)
+{
+	if( !comboBox )
+		return;
+
+	GadgetComboBoxReset( comboBox );
+	const Color color = comboBox->winGetEnabled() ? comboBox->winGetEnabledTextColor() : comboBox->winGetDisabledTextColor();
+	for( Int i = 0; i < ARRAY_SIZE( s_generalPointsRateChoices ); ++i )
+	{
+		Int newIndex = GadgetComboBoxAddEntry( comboBox, formatGeneralPointsRateForComboBox( s_generalPointsRateChoices[i] ), color );
+		GadgetComboBoxSetItemData( comboBox, newIndex, (void *)s_generalPointsRateChoices[i] );
+	}
+	SelectGeneralPointsRateComboBox( comboBox, myGame ? myGame->getGeneralPointsRate() : 100 );
+}
+
+void SelectGeneralPointsRateComboBox(GameWindow *comboBox, UnsignedInt rate)
+{
+	if( !comboBox || selectComboBoxByItemData( comboBox, rate ) )
+		return;
+
+	// the host uses a value this list does not have (custom Options.ini GeneralPointsRate): add it
+	const Color color = comboBox->winGetEnabled() ? comboBox->winGetEnabledTextColor() : comboBox->winGetDisabledTextColor();
+	Int newIndex = GadgetComboBoxAddEntry( comboBox, formatGeneralPointsRateForComboBox( rate ), color );
+	GadgetComboBoxSetItemData( comboBox, newIndex, (void *)rate );
+	GadgetComboBoxSetSelectedPos( comboBox, newIndex, TRUE );
 }
 
 // -----------------------------------------------------------------------------

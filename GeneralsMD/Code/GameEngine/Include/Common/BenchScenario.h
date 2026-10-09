@@ -60,6 +60,9 @@ struct BenchScenario
 	AsciiString capBuildBuilder;
 	Int capBuildCount;
 	std::vector<AsciiString> capPoints;	///< FORK @feature 09/10/2026 capPoints = T1, T2: report each template's load points (cap_points_<T>)
+	Bool superweaponsOff;					///< FORK @feature 09/10/2026 game option: superweapons can be built but never fire
+	UnsignedInt generalPointsRate;	///< FORK @feature 09/10/2026 game option: general's points rate in percent (100 = 1x)
+	std::vector<AsciiString> swTest;	///< FORK @feature 09/10/2026 swTest = S1, S2: place these superweapon structures for slot 0, make them ready and fire
 	std::vector<AsciiString> slotFactions;
 	std::vector<BenchFactionSetup> factions;
 	std::vector<AsciiString> chokeWaypoints;

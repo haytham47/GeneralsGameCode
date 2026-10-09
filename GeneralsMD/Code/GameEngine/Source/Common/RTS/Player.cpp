@@ -331,6 +331,7 @@ Player::Player( Int playerIndex )
 	m_side = nullptr;
 	m_baseSide = nullptr;
 	m_skillPoints = 0;
+	m_skillPointsRemainder = 0; // FORK @feature 09/10/2026
 	Int i;
 	m_upgradeList = nullptr;
 	for(i = 0; i < NUM_HOTKEY_SQUADS; i++)
@@ -354,6 +355,7 @@ void Player::init(const PlayerTemplate* pt)
 
 	DEBUG_ASSERTCRASH(m_playerTeamPrototypes.empty(), ("Player::m_playerTeamPrototypes is not empty at game start!"));
 	m_skillPointsModifier = 1.0f;
+	m_skillPointsRemainder = 0; // FORK @feature 09/10/2026 general's points rate remainder starts empty
 	m_attackedFrame = 0;
 
 	m_isPreorder = FALSE;
@@ -1656,6 +1658,10 @@ void Player::onStructureConstructionComplete( Object *builder, Object *structure
 	if( TheControlBar )
 		TheControlBar->markUIDirty();
 
+	// FORK @feature 09/10/2026 Superweapons disabled in the game options are not announced ("superweapon detected").
+	if( TheGameLogic->areSuperweaponsDisabled() )
+		return;
+
 	// This object may require us to play some EVA sounds.
 	Player *localPlayer = ThePlayerList->getLocalPlayer();
 
@@ -2534,7 +2540,27 @@ Bool Player::addSkillPointsForKill(const Object* killer, const Object* victim)
 	Int victimLevel = victim->getVeterancyLevel();
 	Int skillValue = victim->getTemplate()->getSkillPointValue(victimLevel);
 
-	return addSkillPoints(skillValue);
+	return addCombatSkillPoints(skillValue); // FORK @feature 09/10/2026 scaled by the general's points rate
+}
+
+//=============================================================================
+// FORK @feature 09/10/2026 Skill points earned in combat (kills, special ability triggers), scaled by the general's
+// points rate of the game options. Integer math with a per-player remainder in hundredths, so small gains at a slow
+// rate still add up (10 kills worth 1 point at 0.1x give 1 point) and every PC computes the same result.
+// Script grants and campaign carry-over use addSkillPoints directly and are not scaled.
+Bool Player::addCombatSkillPoints(Int delta)
+{
+	const Int rate = TheGameLogic->getGeneralPointsRate();
+	if( rate >= 100 || delta <= 0 )
+		return addSkillPoints(delta);
+
+	const Int total = delta * rate + m_skillPointsRemainder;
+	m_skillPointsRemainder = total % 100;
+	const Int whole = total / 100;
+	if( whole <= 0 )
+		return FALSE;
+
+	return addSkillPoints(whole);
 }
 
 //=============================================================================

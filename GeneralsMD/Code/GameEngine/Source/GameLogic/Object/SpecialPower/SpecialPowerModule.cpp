@@ -694,6 +694,11 @@ void SpecialPowerModule::doSpecialPower( UnsignedInt commandOptions )
 		return;
 	}
 
+	// FORK @feature 09/10/2026 Superweapons disabled in the game options never fire, whoever asks (player, AI, script).
+	if (TheGameLogic->isSuperweaponBlocked(getSpecialPowerTemplate())) {
+		return;
+	}
+
 	//This tells the update module that we want to do our special power. The update modules
 	//will then start processing each frame.
 	initiateIntentToDoSpecialPower( nullptr, nullptr, nullptr, commandOptions );
@@ -716,6 +721,11 @@ void SpecialPowerModule::doSpecialPowerAtObject( Object *obj, UnsignedInt comman
 		return;
 	}
 
+	// FORK @feature 09/10/2026 Superweapons disabled in the game options never fire, whoever asks (player, AI, script).
+	if (TheGameLogic->isSuperweaponBlocked(getSpecialPowerTemplate())) {
+		return;
+	}
+
 	//This tells the update module that we want to do our special power. The update modules
 	//will then start processing each frame.
 	initiateIntentToDoSpecialPower( obj, nullptr, nullptr, commandOptions );
@@ -735,6 +745,11 @@ void SpecialPowerModule::doSpecialPowerAtObject( Object *obj, UnsignedInt comman
 void SpecialPowerModule::doSpecialPowerAtLocation( const Coord3D *loc, Real angle, UnsignedInt commandOptions )
 {
 	if (m_pausedCount > 0 || getObject()->isDisabled()) {
+		return;
+	}
+
+	// FORK @feature 09/10/2026 Superweapons disabled in the game options never fire, whoever asks (player, AI, script).
+	if (TheGameLogic->isSuperweaponBlocked(getSpecialPowerTemplate())) {
 		return;
 	}
 
@@ -763,6 +778,11 @@ void SpecialPowerModule::doSpecialPowerAtLocation( const Coord3D *loc, Real angl
 void SpecialPowerModule::doSpecialPowerUsingWaypoints( const Waypoint *way, UnsignedInt commandOptions )
 {
 	if (m_pausedCount > 0 || getObject()->isDisabled()) {
+		return;
+	}
+
+	// FORK @feature 09/10/2026 Superweapons disabled in the game options never fire, whoever asks (player, AI, script).
+	if (TheGameLogic->isSuperweaponBlocked(getSpecialPowerTemplate())) {
 		return;
 	}
 

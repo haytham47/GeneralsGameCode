@@ -1406,6 +1406,12 @@ CommandAvailability ControlBar::getCommandAvailability( const CommandButton *com
 			// get special power module from the object to execute it
 			SpecialPowerModuleInterface *mod = obj->getSpecialPowerModule( command->getSpecialPowerTemplate() );
 
+#if RTS_ZEROHOUR
+			// FORK @feature 09/10/2026 Superweapons disabled in the game options stay greyed (no countdown clock).
+			if( TheGameLogic->isSuperweaponBlocked( command->getSpecialPowerTemplate() ) )
+				return COMMAND_RESTRICTED;
+#endif
+
 			if( mod == nullptr )
 			{
 				// sanity ... we must have a module for the special power, if we don't somebody probably

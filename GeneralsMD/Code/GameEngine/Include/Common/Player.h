@@ -700,6 +700,9 @@ public:
 	/// returns TRUE if the player gained/lost levels as a result.
 	Bool addSkillPointsForKill(const Object* killer, const Object* victim);
 
+	/// FORK returns TRUE if the player gained levels; combat-earned points scaled by the general's points rate.
+	Bool addCombatSkillPoints(Int delta);
+
 	void addSciencePurchasePoints(Int delta);
 
 	void setSkillPointsModifier(Real expMod) { m_skillPointsModifier = expMod; }
@@ -795,6 +798,7 @@ private:
 	Bool									m_observer;
 	Bool									m_isPreorder;
 	Real									m_skillPointsModifier;	///< Multiplied by skill points before they are applied
+	Int										m_skillPointsRemainder;	///< FORK @feature 09/10/2026 hundredths of a point left over by the general's points rate
 
 	Bool									m_listInScoreScreen;	///< should this player be listed in the score screen or not.
 	Bool									m_unitsShouldHunt;

@@ -64,6 +64,7 @@ class WindowLayout;
 class TerrainLogic;
 class GhostObjectManager;
 class CommandButton;
+class SpecialPowerTemplate;
 enum BuildableStatus CPP_11(: Int);
 
 
@@ -234,6 +235,9 @@ public:
   UnsignedShort getSuperweaponRestriction() const; ///< Get any optional limits on superweapons
   UnsignedInt getLoadCap() const { return m_loadCap; } ///< FORK per-player build cap in load points (0 = off)
   UnsignedInt getLoadCapForPlayer( Int playerIndex ) const; ///< FORK faction-weighted build cap of one player (0 = off)
+  Bool areSuperweaponsDisabled() const { return m_superweaponsDisabled; } ///< FORK superweapons can be built but never fire
+  Bool isSuperweaponBlocked( const SpecialPowerTemplate *power ) const; ///< FORK TRUE if this power is a superweapon and they are disabled
+  Int getGeneralPointsRate() const { return m_generalPointsRate; } ///< FORK general's points rate in percent (100 = 1x)
   void setSuperweaponRestriction();
 
 #ifdef DUMP_PERF_STATS
@@ -437,6 +441,8 @@ private:
   UnsignedInt m_loadCap; ///< FORK per-player build cap in load points (0 = off), copied from the game options
   UnsignedInt m_playerLoadCap[MAX_PLAYER_COUNT]; ///< FORK faction-weighted cap per player index (0 = use m_loadCap)
   void computePlayerLoadCaps(); ///< FORK splits the match budget (players x m_loadCap) by faction weight
+  Bool m_superweaponsDisabled; ///< FORK @feature 09/10/2026 superweapons can be built but never fire, copied from the game options
+  Int m_generalPointsRate; ///< FORK @feature 09/10/2026 general's points rate in percent (100 = 1x), copied from the game options
 
 	LoadScreen *getLoadScreen( Bool loadSaveGame );
 	LoadScreen *m_loadScreen;

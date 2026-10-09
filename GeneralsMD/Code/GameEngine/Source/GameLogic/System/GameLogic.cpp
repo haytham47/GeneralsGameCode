@@ -52,6 +52,7 @@
 #include "Common/Radar.h"
 #include "Common/RandomValue.h"
 #include "Common/Recorder.h"
+#include "Common/SpecialPower.h" // FORK @feature 09/10/2026 isSuperweaponBlocked
 #include "Common/StatsCollector.h"
 #include "Common/ThingFactory.h"
 #include "Common/Team.h"
@@ -251,6 +252,8 @@ GameLogic::GameLogic()
 	m_loadCap = 0; // FORK @feature 08/10/2026 build cap off until a game starts
 	for (Int capIndex = 0; capIndex < MAX_PLAYER_COUNT; ++capIndex)
 		m_playerLoadCap[capIndex] = 0; // FORK @feature 09/10/2026 no faction-weighted caps until a game starts
+	m_superweaponsDisabled = FALSE; // FORK @feature 09/10/2026 superweapons fire until a game says otherwise
+	m_generalPointsRate = 100; // FORK @feature 09/10/2026 normal general's points rate until a game says otherwise
 	m_pauseFrame = 0;
 	m_gamePaused = FALSE;
 	m_pauseSound = FALSE;
@@ -485,6 +488,8 @@ void GameLogic::reset()
 	m_loadCap = 0; // FORK @feature 08/10/2026 build cap off between games
 	for (Int capIndex = 0; capIndex < MAX_PLAYER_COUNT; ++capIndex)
 		m_playerLoadCap[capIndex] = 0; // FORK @feature 09/10/2026 faction-weighted caps off between games
+	m_superweaponsDisabled = FALSE; // FORK @feature 09/10/2026 superweapons fire between games
+	m_generalPointsRate = 100; // FORK @feature 09/10/2026 normal general's points rate between games
 }
 
 static Object * placeObjectAtPosition(Int slotNum, AsciiString objectTemplateName, Coord3D& pos, Player *pPlayer,
@@ -790,6 +795,32 @@ UnsignedInt GameLogic::getLoadCapForPlayer( Int playerIndex ) const
 		return m_playerLoadCap[playerIndex];
 
 	return m_loadCap;
+}
+
+// ------------------------------------------------------------------------------------------------
+// FORK @feature 09/10/2026 With superweapons disabled in the game options, the three superweapon strikes (Particle
+// Cannon, Nuclear Missile, SCUD Storm, every general variant) can never fire. Identified by power type, the same list
+// Player::onStructureConstructionComplete uses; "PublicTimer" is no good here because retail data also sets it on
+// unused general powers. Only synchronized data is read, so every PC gives the same answer.
+// ------------------------------------------------------------------------------------------------
+Bool GameLogic::isSuperweaponBlocked( const SpecialPowerTemplate *power ) const
+{
+	if (!m_superweaponsDisabled || power == nullptr)
+		return FALSE;
+
+	switch (power->getSpecialPowerType())
+	{
+		case SPECIAL_PARTICLE_UPLINK_CANNON:
+		case SUPW_SPECIAL_PARTICLE_UPLINK_CANNON:
+		case LAZR_SPECIAL_PARTICLE_UPLINK_CANNON:
+		case SPECIAL_NEUTRON_MISSILE:
+		case NUKE_SPECIAL_NEUTRON_MISSILE:
+		case SUPW_SPECIAL_NEUTRON_MISSILE:
+		case SPECIAL_SCUD_STORM:
+			return TRUE;
+		default:
+			return FALSE;
+	}
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1355,6 +1386,12 @@ void GameLogic::tryStartNewGame( Bool loadingSaveGame )
   // FORK @feature 08/10/2026 The per-player build cap comes from the game options (LAN, skirmish, replay header).
   // It is not saved in save games, so a loaded save plays without a cap.
   m_loadCap = ( !loadingSaveGame && TheGameInfo ) ? TheGameInfo->getLoadCap() : 0;
+  // FORK @feature 09/10/2026 Same for disabled superweapons and the general's points rate (not saved either).
+  m_superweaponsDisabled = ( !loadingSaveGame && TheGameInfo ) ? TheGameInfo->getSuperweaponsDisabled() : FALSE;
+  m_generalPointsRate = ( !loadingSaveGame && TheGameInfo ) ? (Int)TheGameInfo->getGeneralPointsRate() : 100;
+  if ( m_generalPointsRate < 1 || m_generalPointsRate > 100 )
+    m_generalPointsRate = 100;
+  DEBUG_LOG(( "GameLogic: superweapons %s, general's points rate %d%%", m_superweaponsDisabled ? "disabled" : "enabled", m_generalPointsRate ));
 
   if ( !loadingSaveGame )
   {

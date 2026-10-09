@@ -44,6 +44,8 @@
 #include "GameLogic/Module/AIUpdate.h"
 #include "GameLogic/Module/CreateModule.h"
 #include "GameLogic/Module/ProductionUpdate.h"
+#include "GameLogic/Module/SpecialPowerModule.h"
+#include "Common/SpecialPower.h"
 #include "GameLogic/Object.h"
 #include "GameLogic/ScriptEngine.h"
 #include "GameLogic/Scripts.h"
@@ -234,6 +236,8 @@ namespace
 		TheSkirmishGameInfo->setStartingCash(cash);
 		TheSkirmishGameInfo->setSuperweaponRestriction(0);
 		TheSkirmishGameInfo->setLoadCap(s_scenario.loadCap);
+		TheSkirmishGameInfo->setSuperweaponsDisabled(s_scenario.superweaponsOff); // FORK @feature 09/10/2026
+		TheSkirmishGameInfo->setGeneralPointsRate(s_scenario.generalPointsRate); // FORK @feature 09/10/2026
 		TheSkirmishGameInfo->setSeed((Int)s_scenario.seed);
 		TheSkirmishGameInfo->setMap(mapName);
 		TheSkirmishGameInfo->setMapCRC(md->m_CRC);
@@ -519,6 +523,106 @@ namespace
 		Bench::setInfoInt("cap_test_ok", ok ? 1 : 0);
 	}
 
+	// FORK @feature 09/10/2026 Superweapons / general's points rate test. swTest structures are placed for slot 0 at
+	// setup; once built, each superweapon is made ready and told to fire at slot 1's base. SW_CHECK_FRAMES later a
+	// fired power is recharging again (not ready) while a blocked one is still ready. Results: sw_<template>_fired,
+	// sw_fired / sw_tested. The rank part gives slot 0 ten combat points of 1 and reports the gain (rank_test_*).
+	const UnsignedInt SW_CHECK_FRAMES = 900;
+	std::vector<ObjectID> s_swObjects;
+
+	SpecialPowerModuleInterface *findSuperweaponModule(Object *obj)
+	{
+		for (BehaviorModule **m = obj->getBehaviorModules(); *m; ++m)
+		{
+			SpecialPowerModuleInterface *sp = (*m)->getSpecialPower();
+			if (sp && sp->getSpecialPowerTemplate() && sp->getSpecialPowerTemplate()->hasPublicTimer())
+				return sp;
+		}
+		return nullptr;
+	}
+
+	void placeSuperweaponTestStructures()
+	{
+		s_swObjects.clear();
+		for (size_t i = 0; i < s_scenario.swTest.size(); ++i)
+		{
+			const ThingTemplate *tmpl = TheThingFactory->findTemplate(s_scenario.swTest[i]);
+			Object *obj = nullptr;
+			if (tmpl)
+			{
+				const Real awayX = s_start[0].x - s_centre.x;
+				const Real awayY = s_start[0].y - s_centre.y;
+				const Real len = (Real)sqrt(awayX * awayX + awayY * awayY);
+				const Real a = (len > 1.0f ? (Real)atan2(awayY, awayX) : 0.0f) + 1.6f + (Real)i * 0.7f;
+				Coord3D pos;
+				pos.x = s_start[0].x + (Real)cos(a) * 260.0f;
+				pos.y = s_start[0].y + (Real)sin(a) * 260.0f;
+				pos.z = TheTerrainLogic->getGroundHeight(pos.x, pos.y);
+				obj = TheBuildAssistant->buildObjectNow(nullptr, tmpl, &pos, tmpl->getPlacementViewAngle(), s_players[0]);
+			}
+			s_swObjects.push_back(obj ? obj->getID() : INVALID_ID);
+		}
+	}
+
+	void fireSuperweaponTest()
+	{
+		Bench::setInfoInt("sw_disabled_option", TheGameLogic->areSuperweaponsDisabled() ? 1 : 0);
+		Bench::setInfoInt("points_rate_option", TheGameLogic->getGeneralPointsRate());
+
+		// General's points: ten combat gains of 1 point each.
+		if (s_players[0])
+		{
+			const Int before = s_players[0]->getSkillPoints();
+			for (Int k = 0; k < 10; ++k)
+				s_players[0]->addCombatSkillPoints(1);
+			// each whole point then goes through the player's skill points modifier (rounded up)
+			const Int perPoint = REAL_TO_INT_CEIL(s_players[0]->getSkillPointsModifier());
+			Bench::setInfoInt("rank_test_gain", s_players[0]->getSkillPoints() - before);
+			Bench::setInfoInt("rank_test_expected", perPoint * (10 * TheGameLogic->getGeneralPointsRate() / 100));
+			Bench::setInfoInt("rank_test_modifier_x100", REAL_TO_INT(s_players[0]->getSkillPointsModifier() * 100.0f));
+		}
+
+		for (size_t i = 0; i < s_swObjects.size(); ++i)
+		{
+			Object *obj = TheGameLogic->findObjectByID(s_swObjects[i]);
+			SpecialPowerModuleInterface *sp = obj ? findSuperweaponModule(obj) : nullptr;
+			AsciiString key;
+			key.format("sw_%s_power", s_scenario.swTest[i].str());
+			Bench::setInfo(key.str(), sp ? sp->getPowerName().str() : "none");
+			if (!sp)
+				continue;
+			key.format("sw_%s_blocked_by_logic", s_scenario.swTest[i].str());
+			Bench::setInfoInt(key.str(), TheGameLogic->isSuperweaponBlocked(sp->getSpecialPowerTemplate()) ? 1 : 0);
+			key.format("sw_%s_disabled", s_scenario.swTest[i].str()); // underpowered etc.: such a result says nothing
+			Bench::setInfoInt(key.str(), obj->isDisabled() ? 1 : 0);
+			sp->setReadyFrame(TheGameLogic->getFrame());
+			Coord3D target = s_start[1];
+			sp->doSpecialPowerAtLocation(&target, 0.0f, 0);
+		}
+	}
+
+	void checkSuperweaponTest()
+	{
+		Int tested = 0;
+		Int fired = 0;
+		for (size_t i = 0; i < s_swObjects.size(); ++i)
+		{
+			Object *obj = TheGameLogic->findObjectByID(s_swObjects[i]);
+			SpecialPowerModuleInterface *sp = obj ? findSuperweaponModule(obj) : nullptr;
+			if (!sp)
+				continue;
+			++tested;
+			const Bool didFire = !sp->isReady();
+			if (didFire)
+				++fired;
+			AsciiString key;
+			key.format("sw_%s_fired", s_scenario.swTest[i].str());
+			Bench::setInfoInt(key.str(), didFire ? 1 : 0);
+		}
+		Bench::setInfoInt("sw_tested", tested);
+		Bench::setInfoInt("sw_fired", fired);
+	}
+
 	void setup()
 	{
 		s_setupFrame = TheGameLogic->getFrame();
@@ -586,6 +690,7 @@ namespace
 				placeStructure(s_players[i], fs->structures[k], pos);
 			}
 		}
+		placeSuperweaponTestStructures(); // FORK @feature 09/10/2026
 
 		// Loading and setup work is not part of the measured frames.
 		Bench::resetAccumulators();
@@ -814,6 +919,15 @@ void BenchDriver::preLogicUpdate()
 	// The cap test runs once the base structures placed at setup have finished their construction status.
 	if (frame == s_setupFrame + 60)
 		runCapTest();
+
+	// FORK @feature 09/10/2026 Superweapons / general's points rate test (swTest scenarios only).
+	if (!s_scenario.swTest.empty())
+	{
+		if (frame == s_setupFrame + 60)
+			fireSuperweaponTest();
+		else if (frame == s_setupFrame + 60 + SW_CHECK_FRAMES)
+			checkSuperweaponTest();
+	}
 
 	if ((frame % s_scenario.waveEvery) == 0)
 	{
