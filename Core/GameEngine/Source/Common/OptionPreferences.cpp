@@ -801,6 +801,28 @@ UnsignedInt OptionPreferences::getLoadCap()
 	return loadCap > 0 ? (UnsignedInt)loadCap : 0;
 }
 
+// FORK @feature 09/10/2026 "SuperweaponsOff = Yes" on the host: superweapons can be built but never fire.
+Bool OptionPreferences::getSuperweaponsDisabled()
+{
+	OptionPreferences::const_iterator it = find("SuperweaponsOff");
+	if (it == end())
+		return FALSE;
+
+	return it->second.compareNoCase("yes") == 0 || atoi(it->second.str()) != 0;
+}
+
+// FORK @feature 09/10/2026 General's points rate in percent that this PC uses when it hosts a game.
+// "GeneralPointsRate = 25" in Options.ini; missing or out of range = 100 (normal). Every player receives the host's value.
+UnsignedInt OptionPreferences::getGeneralPointsRate()
+{
+	OptionPreferences::const_iterator it = find("GeneralPointsRate");
+	if (it == end())
+		return 100;
+
+	const Int rate = atoi(it->second.str());
+	return (rate >= 1 && rate <= 100) ? (UnsignedInt)rate : 100;
+}
+
 Int OptionPreferences::getNetworkLatencyFontSize()
 {
 	OptionPreferences::const_iterator it = find("NetworkLatencyFontSize");

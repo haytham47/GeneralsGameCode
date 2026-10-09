@@ -116,6 +116,7 @@ static NameKeyType sliderGameSpeedID = NAMEKEY_INVALID;
 static NameKeyType staticTextGameSpeedID = NAMEKEY_INVALID;
 static NameKeyType checkBoxLimitSuperweaponsID = NAMEKEY_INVALID;
 static NameKeyType comboBoxStartingCashID = NAMEKEY_INVALID;
+static NameKeyType comboBoxSuperweaponsID = NAMEKEY_INVALID; // FORK @feature 09/10/2026 replaces the "Limit Superweapons" check box
 
 // Window Pointers ------------------------------------------------------------------------
 static GameWindow *staticTextGameSpeed = nullptr;
@@ -129,6 +130,7 @@ static GameWindow *windowMap = nullptr;
 static GameWindow *textEntryPlayerName = nullptr;
 static GameWindow *checkBoxLimitSuperweapons = nullptr;
 static GameWindow *comboBoxStartingCash = nullptr;
+static GameWindow *comboBoxSuperweapons = nullptr; // FORK @feature 09/10/2026
 static GameWindow *comboBoxPlayer[MAX_SLOTS] = {0};
 
 static GameWindow *comboBoxColor[MAX_SLOTS] = {0};
@@ -358,7 +360,9 @@ Bool SkirmishPreferences::write()
 	(*this)["UserName"] = UnicodeStringToQuotedPrintable(TheSkirmishGameInfo->getConstSlot(0)->getName());
 
   setStartingCash( TheSkirmishGameInfo->getStartingCash() );
-  setSuperweaponRestricted( TheSkirmishGameInfo->getSuperweaponRestriction() != 0 );
+  // FORK @feature 09/10/2026 "Disabled" lifts the limit in the game but keeps the remembered "Limit 1" choice.
+  if ( !TheSkirmishGameInfo->getSuperweaponsDisabled() )
+    setSuperweaponRestricted( TheSkirmishGameInfo->getSuperweaponRestriction() != 0 );
 
 	setSlotList();
 
@@ -998,6 +1002,25 @@ static void handleStartingCashSelection()
   }
 }
 
+// FORK @feature 09/10/2026 Superweapons mode (Unlimited / Limit 1 / Disabled). The limit is kept in the skirmish
+// preferences as before; "disabled" in Options.ini (SuperweaponsOff), shared with the LAN host.
+static void handleSuperweaponsSelection()
+{
+  GameInfo *myGame = TheSkirmishGameInfo;
+  if (!myGame)
+    return;
+
+  const Int mode = (Int)GetComboBoxSelectedItemData(comboBoxSuperweapons, SUPERWEAPONS_UNLIMITED);
+  if (mode == GetSuperweaponsMode(myGame))
+    return;
+
+  SetSuperweaponsMode( myGame, mode );
+
+  OptionPreferences optionPref;
+  optionPref["SuperweaponsOff"] = (mode == SUPERWEAPONS_DISABLED) ? "Yes" : "No";
+  optionPref.write();
+}
+
 static void handleLimitSuperweaponsClick()
 {
   GameInfo *myGame = TheSkirmishGameInfo;
@@ -1055,6 +1078,17 @@ void InitSkirmishGameGadgets()
   comboBoxStartingCash = TheWindowManager->winGetWindowFromId( parentSkirmishGameOptions, comboBoxStartingCashID );
   DEBUG_ASSERTCRASH(comboBoxStartingCash, ("Could not find the comboBoxStartingCash"));
   PopulateStartingCashComboBox(comboBoxStartingCash, TheSkirmishGameInfo );
+
+	// FORK @feature 09/10/2026 "Superweapons" selector in place of the "Limit Superweapons" check box, which is hidden.
+	comboBoxSuperweaponsID = TheNameKeyGenerator->nameToKey( "SkirmishGameOptionsMenu.wnd:ComboBoxSuperweapons" );
+	comboBoxSuperweapons = CreateLobbyComboGadgets( comboBoxStartingCash, "GUI:StartingMoney", "SkirmishGameOptionsMenu.wnd:ComboBoxSuperweapons",
+		L"Superweapons:", L"Unlimited, Limit 1 (one of each type), or Disabled: superweapons can be built and upgraded but never fire, "
+		L"have no countdown and are not announced.",
+		560, 650, 652, 745, 336, 360 );
+	DEBUG_ASSERTCRASH(comboBoxSuperweapons, ("Could not create the comboBoxSuperweapons"));
+	if (comboBoxSuperweapons && checkBoxLimitSuperweapons)
+		checkBoxLimitSuperweapons->winHide( TRUE );
+	PopulateSuperweaponsComboBox(comboBoxSuperweapons, TheSkirmishGameInfo);
 
 	textEntryPlayerNameID = TheNameKeyGenerator->nameToKey( "SkirmishGameOptionsMenu.wnd:TextEntryPlayerName" );
   textEntryPlayerName = TheWindowManager->winGetWindowFromId( nullptr, textEntryPlayerNameID );
@@ -1235,6 +1269,7 @@ void updateSkirmishGameOptions()
 	}
 
   GadgetCheckBoxSetChecked( checkBoxLimitSuperweapons, TheSkirmishGameInfo->getSuperweaponRestriction() != 0 );
+  SelectSuperweaponsComboBox( comboBoxSuperweapons, TheSkirmishGameInfo ); // FORK @feature 09/10/2026
   Int itemCount = GadgetComboBoxGetLength(comboBoxStartingCash);
   Int index = 0;
   for ( ; index < itemCount; index++ )
@@ -1323,6 +1358,10 @@ void SkirmishGameOptionsMenuInit( WindowLayout *layout, void *userData )
   {
     OptionPreferences optionPref;
     TheSkirmishGameInfo->setLoadCap( optionPref.getLoadCap() );
+    // FORK @feature 09/10/2026 Same for disabled superweapons (which lifts the limit) and the general's points rate.
+    if ( optionPref.getSuperweaponsDisabled() )
+      SetSuperweaponsMode( TheSkirmishGameInfo, SUPERWEAPONS_DISABLED );
+    TheSkirmishGameInfo->setGeneralPointsRate( optionPref.getGeneralPointsRate() );
   }
 
   TheSkirmishGameInfo->setMap(prefs.getPreferredMap());
@@ -1556,6 +1595,10 @@ WindowMsgHandledType SkirmishGameOptionsMenuSystem( GameWindow *window, Unsigned
         if ( controlID == comboBoxStartingCashID )
         {
           handleStartingCashSelection();
+        }
+        else if ( controlID == comboBoxSuperweaponsID )
+        {
+          handleSuperweaponsSelection(); // FORK @feature 09/10/2026
         }
         else
         {

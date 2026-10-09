@@ -605,6 +605,10 @@ void InGameUI::addSuperweapon(Int playerIndex, const AsciiString& powerName, Obj
 	if (powerTemplate == nullptr)
 		return;
 
+	// FORK @feature 09/10/2026 Superweapons disabled in the game options get no countdown timer (so no "ready" EVA either).
+	if (TheGameLogic->isSuperweaponBlocked(powerTemplate))
+		return;
+
 	// srj sez: don't allow adding the same superweapon more than once. it can happen. not sure how. (srj)
 	SuperweaponInfo* swInfo = findSWInfo(playerIndex, powerName, id, powerTemplate);
 	if (swInfo != nullptr)

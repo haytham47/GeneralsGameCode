@@ -5149,7 +5149,9 @@ void Object::look()
 			//reveal to all range can specify a different value so we can get a much smaller reveal distance.
 			// And don't reveal while under construction.  When finished, a refresh occurs, so don't worry.
 			Real shroudRevealToAllRange = getTemplate()->getShroudRevealToAllRange();
-			if( shroudRevealToAllRange > 0.0f && !testStatus( OBJECT_STATUS_UNDER_CONSTRUCTION ) )
+			// FORK @bugfix 09/10/2026 A superweapon that cannot fire (disabled in the game options) stays under the fog
+			// for enemies like any other building.
+			if( shroudRevealToAllRange > 0.0f && !testStatus( OBJECT_STATUS_UNDER_CONSTRUCTION ) && !TheGameLogic->isDisabledSuperweaponObject( this ) )
 			{
 				//Kris: August 20, 2003
 				//Seeing I added this concept, I'm changing it now to only reveal to all when the unit is visible. If it's stealthed,

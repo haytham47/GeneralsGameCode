@@ -1277,7 +1277,7 @@ void SpecialAbilityUpdate::triggerAbilityEffect()
     Player *player = object->getControllingPlayer();
     if( player )
     {
-      player->addSkillPoints( skillPoints );
+      player->addCombatSkillPoints( skillPoints ); // FORK @feature 09/10/2026 scaled by the general's points rate
     }
   }
 

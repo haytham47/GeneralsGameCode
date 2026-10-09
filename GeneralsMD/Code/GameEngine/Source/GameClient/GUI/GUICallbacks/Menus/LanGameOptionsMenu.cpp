@@ -116,6 +116,8 @@ static NameKeyType buttonSelectMapID = NAMEKEY_INVALID;
 static NameKeyType checkboxLimitSuperweaponsID = NAMEKEY_INVALID;
 static NameKeyType comboBoxStartingCashID = NAMEKEY_INVALID;
 static NameKeyType comboBoxLoadCapID = NAMEKEY_INVALID; // FORK @feature 09/10/2026 build cap selector (created at runtime)
+static NameKeyType comboBoxSuperweaponsID = NAMEKEY_INVALID; // FORK @feature 09/10/2026 replaces the "Limit Superweapons" check box
+static NameKeyType comboBoxGeneralPointsID = NAMEKEY_INVALID; // FORK @feature 09/10/2026 general's points rate selector
 static NameKeyType windowMapID = NAMEKEY_INVALID;
 // Window Pointers ------------------------------------------------------------------------
 static GameWindow *parentLanGameOptions = nullptr;
@@ -128,6 +130,8 @@ static GameWindow *textEntryMapDisplay = nullptr;
 static GameWindow *checkboxLimitSuperweapons = nullptr;
 static GameWindow *comboBoxStartingCash = nullptr;
 static GameWindow *comboBoxLoadCap = nullptr; // FORK @feature 09/10/2026
+static GameWindow *comboBoxSuperweapons = nullptr; // FORK @feature 09/10/2026
+static GameWindow *comboBoxGeneralPoints = nullptr; // FORK @feature 09/10/2026
 static GameWindow *windowMap = nullptr;
 
 static GameWindow *comboBoxPlayer[MAX_SLOTS] = {0};
@@ -659,6 +663,71 @@ static void handleLoadCapSelection()
   }
 }
 
+// FORK @feature 09/10/2026 Only the host picks the superweapons mode (Unlimited / Limit 1 / Disabled). The limit stays
+// in the LAN preferences as before; "disabled" is kept in the host's Options.ini (SuperweaponsOff), which skirmish uses too.
+static void handleSuperweaponsSelection()
+{
+  LANGameInfo *myGame = TheLAN->GetMyGame();
+  if (!myGame || !myGame->amIHost())
+    return;
+
+  const Int mode = (Int)GetComboBoxSelectedItemData(comboBoxSuperweapons, SUPERWEAPONS_UNLIMITED);
+  if (mode == GetSuperweaponsMode(myGame))
+    return;
+
+  SetSuperweaponsMode( myGame, mode );
+  myGame->resetAccepted();
+
+  {
+    OptionPreferences optionPref;
+    optionPref["SuperweaponsOff"] = (mode == SUPERWEAPONS_DISABLED) ? "Yes" : "No";
+    optionPref.write();
+  }
+  if (mode != SUPERWEAPONS_DISABLED)
+  {
+    LANPreferences pref;
+    pref.setSuperweaponRestricted( mode == SUPERWEAPONS_LIMITED );
+    pref.write();
+  }
+
+  if (!s_isIniting)
+  {
+    // send around the new data
+    TheLAN->RequestGameOptions(GenerateGameOptionsString(), true);
+    lanUpdateSlotList(); // Update the accepted button UI
+  }
+}
+
+// FORK @feature 09/10/2026 Only the host picks the general's points rate (Options.ini GeneralPointsRate, used by skirmish too).
+static void handleGeneralPointsSelection()
+{
+  LANGameInfo *myGame = TheLAN->GetMyGame();
+  if (!myGame || !myGame->amIHost())
+    return;
+
+  const UnsignedInt rate = GetComboBoxSelectedItemData(comboBoxGeneralPoints, 100);
+  if (rate == myGame->getGeneralPointsRate())
+    return;
+
+  myGame->setGeneralPointsRate( rate );
+  myGame->resetAccepted();
+
+  {
+    OptionPreferences optionPref;
+    AsciiString value;
+    value.format("%u", rate);
+    optionPref["GeneralPointsRate"] = value;
+    optionPref.write();
+  }
+
+  if (!s_isIniting)
+  {
+    // send around the new data
+    TheLAN->RequestGameOptions(GenerateGameOptionsString(), true);
+    lanUpdateSlotList(); // Update the accepted button UI
+  }
+}
+
 static void handleLimitSuperweaponsClick()
 {
   LANGameInfo *myGame = TheLAN->GetMyGame();
@@ -740,12 +809,35 @@ void InitLanGameGadgets()
   DEBUG_ASSERTCRASH(comboBoxStartingCash, ("Could not find the comboBoxStartingCash"));
 	PopulateStartingCashComboBox(comboBoxStartingCash, TheLAN->GetMyGame());
 
-	// FORK @feature 09/10/2026 Build cap selector right of "Limit Superweapons" (800x600 layout coordinates).
+	// FORK @feature 09/10/2026 General's points rate selector under the build cap; the chat box starts one row lower.
+	// FORK @bugfix 09/10/2026 Created before the first-row combos: a new window goes on top of its siblings, and the
+	// build cap list opens down over this row, so it must be created later to be drawn above it.
+	comboBoxGeneralPointsID = TheNameKeyGenerator->nameToKey( "LanGameOptionsMenu.wnd:ComboBoxGeneralPoints" );
+	comboBoxGeneralPoints = CreateLobbyComboGadgets( comboBoxStartingCash, "GUI:StartingMoney", "LanGameOptionsMenu.wnd:ComboBoxGeneralPoints",
+		L"Gen. Points:", L"How fast the general's rank (skill) points come from kills and abilities. Unit veterancy is not affected.",
+		536, 626, 628, 700, 360, 384 );
+	DEBUG_ASSERTCRASH(comboBoxGeneralPoints, ("Could not create the comboBoxGeneralPoints"));
+	PopulateGeneralPointsRateComboBox(comboBoxGeneralPoints, TheLAN->GetMyGame());
+	if (comboBoxGeneralPoints)
+		ShrinkWindowTopToLayoutY( listboxChatWindowLanGame, 388 );
+
+	// FORK @feature 09/10/2026 Build cap selector right of the superweapons selector (800x600 layout coordinates).
 	comboBoxLoadCapID = TheNameKeyGenerator->nameToKey( "LanGameOptionsMenu.wnd:ComboBoxLoadCap" );
 	comboBoxLoadCap = CreateLoadCapGadgets( comboBoxStartingCash, "GUI:StartingMoney", "LanGameOptionsMenu.wnd:ComboBoxLoadCap",
-		610, 680, 682, 752, 332, 356 );
+		536, 626, 628, 700, 332, 356 );
 	DEBUG_ASSERTCRASH(comboBoxLoadCap, ("Could not create the comboBoxLoadCap"));
 	PopulateLoadCapComboBox(comboBoxLoadCap, TheLAN->GetMyGame());
+
+	// FORK @feature 09/10/2026 "Superweapons" selector in place of the "Limit Superweapons" check box, which is hidden.
+	comboBoxSuperweaponsID = TheNameKeyGenerator->nameToKey( "LanGameOptionsMenu.wnd:ComboBoxSuperweapons" );
+	comboBoxSuperweapons = CreateLobbyComboGadgets( comboBoxStartingCash, "GUI:StartingMoney", "LanGameOptionsMenu.wnd:ComboBoxSuperweapons",
+		L"Superweapons:", L"Unlimited, Limit 1 (one of each type), or Disabled: superweapons can be built and upgraded but never fire, "
+		L"have no countdown and are not announced.",
+		346, 438, 440, 532, 332, 356 );
+	DEBUG_ASSERTCRASH(comboBoxSuperweapons, ("Could not create the comboBoxSuperweapons"));
+	if (comboBoxSuperweapons && checkboxLimitSuperweapons)
+		checkboxLimitSuperweapons->winHide( TRUE );
+	PopulateSuperweaponsComboBox(comboBoxSuperweapons, TheLAN->GetMyGame());
 
 	windowMap = TheWindowManager->winGetWindowFromId( parentLanGameOptions,windowMapID  );
 	DEBUG_ASSERTCRASH(windowMap, ("Could not find the LanGameOptionsMenu.wnd:MapWindow" ));
@@ -842,6 +934,8 @@ void DeinitLanGameGadgets()
   checkboxLimitSuperweapons = nullptr;
   comboBoxStartingCash = nullptr;
 	comboBoxLoadCap = nullptr; // FORK @feature 09/10/2026
+	comboBoxSuperweapons = nullptr; // FORK @feature 09/10/2026
+	comboBoxGeneralPoints = nullptr; // FORK @feature 09/10/2026
 	if (windowMap)
 	{
 		windowMap->winSetUserData(nullptr);
@@ -905,6 +999,10 @@ void LanGameOptionsMenuInit( WindowLayout *layout, void *userData )
 		{
 			OptionPreferences optionPref;
 			game->setLoadCap( optionPref.getLoadCap() );
+			// FORK @feature 09/10/2026 Same for disabled superweapons (which lifts the limit) and the general's points rate.
+			if( optionPref.getSuperweaponsDisabled() )
+				SetSuperweaponsMode( game, SUPERWEAPONS_DISABLED );
+			game->setGeneralPointsRate( optionPref.getGeneralPointsRate() );
 		}
 		AsciiString lowerMap = pref.getPreferredMap();
 		lowerMap.toLower();
@@ -936,6 +1034,10 @@ void LanGameOptionsMenuInit( WindowLayout *layout, void *userData )
     comboBoxStartingCash->winEnable( FALSE );      // Ditto
 		if (comboBoxLoadCap)
 			comboBoxLoadCap->winEnable( FALSE );         // FORK @feature 09/10/2026 Ditto
+		if (comboBoxSuperweapons)
+			comboBoxSuperweapons->winEnable( FALSE );    // FORK @feature 09/10/2026 Ditto
+		if (comboBoxGeneralPoints)
+			comboBoxGeneralPoints->winEnable( FALSE );   // FORK @feature 09/10/2026 Ditto
 		TheLAN->GetMyGame()->setMapCRC( TheLAN->GetMyGame()->getMapCRC() );		// force a recheck
 		TheLAN->GetMyGame()->setMapSize( TheLAN->GetMyGame()->getMapSize() ); // of if we have the map
 		TheLAN->RequestHasMap();
@@ -1028,6 +1130,9 @@ void updateGameOptions()
 
 		// FORK @feature 09/10/2026 Show the host's build cap.
 		SelectLoadCapComboBox( comboBoxLoadCap, theGame->getLoadCap() );
+		// FORK @feature 09/10/2026 Show the host's superweapons mode and general's points rate.
+		SelectSuperweaponsComboBox( comboBoxSuperweapons, theGame );
+		SelectGeneralPointsRateComboBox( comboBoxGeneralPoints, theGame->getGeneralPointsRate() );
 	}
 }
 
@@ -1215,6 +1320,14 @@ WindowMsgHandledType LanGameOptionsMenuSystem( GameWindow *window, UnsignedInt m
         else if ( controlID == comboBoxLoadCapID )
         {
           handleLoadCapSelection(); // FORK @feature 09/10/2026
+        }
+        else if ( controlID == comboBoxSuperweaponsID )
+        {
+          handleSuperweaponsSelection(); // FORK @feature 09/10/2026
+        }
+        else if ( controlID == comboBoxGeneralPointsID )
+        {
+          handleGeneralPointsSelection(); // FORK @feature 09/10/2026
         }
         else
         {

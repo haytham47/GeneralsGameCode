@@ -122,6 +122,8 @@ public:
 
 	Int getNetworkLatencyFontSize();
 	UnsignedInt getLoadCap();	///< FORK per-player build cap the host offers (Options.ini LoadCap, 0 = off)
+	Bool getSuperweaponsDisabled();	///< FORK superweapons can be built but never fire (Options.ini SuperweaponsOff)
+	UnsignedInt getGeneralPointsRate();	///< FORK general's points rate in percent the host offers (Options.ini GeneralPointsRate, 100 = 1x)
 	Int getRenderFpsFontSize();
 	Int getSystemTimeFontSize();
 	Int getGameTimeFontSize();

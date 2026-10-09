@@ -34,6 +34,7 @@
 #include "Common/RandomValue.h"
 #include "Common/ThingFactory.h"
 #include "Common/Xfer.h"
+#include "GameLogic/GameLogic.h" // FORK @feature 09/10/2026 isSuperweaponBlocked
 #include "GameLogic/Object.h"
 #include "GameLogic/ObjectCreationList.h"
 #include "GameLogic/PartitionManager.h"
@@ -151,6 +152,11 @@ void OCLSpecialPower::doSpecialPowerAtLocation( const Coord3D *loc, Real angle, 
 	if (getObject()->isDisabled())
 		return;
 
+	// FORK @feature 09/10/2026 Superweapons disabled in the game options never fire (the base class only skips its
+	// own part, the creation list below would still run).
+	if (TheGameLogic->isSuperweaponBlocked(getSpecialPowerTemplate()))
+		return;
+
 	// sanity
 	if( loc == nullptr )
 		return;
@@ -227,6 +233,11 @@ void OCLSpecialPower::doSpecialPowerAtObject( Object *obj, UnsignedInt commandOp
 	if (getObject()->isDisabled())
 		return;
 
+	// FORK @feature 09/10/2026 Superweapons disabled in the game options never fire (the base class only skips its
+	// own part, the creation list below would still run).
+	if (TheGameLogic->isSuperweaponBlocked(getSpecialPowerTemplate()))
+		return;
+
 	// convert to a location
 	if( !obj )
 		return;
@@ -237,6 +248,11 @@ void OCLSpecialPower::doSpecialPowerAtObject( Object *obj, UnsignedInt commandOp
 void OCLSpecialPower::doSpecialPower( UnsignedInt commandOptions )
 {
 	if (getObject()->isDisabled())
+		return;
+
+	// FORK @feature 09/10/2026 Superweapons disabled in the game options never fire (the base class only skips its
+	// own part, the creation list below would still run).
+	if (TheGameLogic->isSuperweaponBlocked(getSpecialPowerTemplate()))
 		return;
 
 	Coord3D creationCoord;

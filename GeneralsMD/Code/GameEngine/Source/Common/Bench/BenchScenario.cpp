@@ -61,7 +61,9 @@ BenchScenario::BenchScenario() :
 	crcEvery(300),
 	loadCap(0),
 	capQueue(0),
-	capBuildCount(0)
+	capBuildCount(0),
+	superweaponsOff(FALSE),
+	generalPointsRate(100)
 {
 }
 
@@ -183,6 +185,9 @@ Bool BenchScenario::parse(const char *path, AsciiString &error)
 		else if (key.compareNoCase("loadCap") == 0) loadCap = (UnsignedInt)atoi(value.str());
 		else if (key.compareNoCase("capQueue") == 0) capQueue = atoi(value.str());
 		else if (key.compareNoCase("capPoints") == 0) splitList(value, capPoints);
+		else if (key.compareNoCase("superweaponsOff") == 0) superweaponsOff = (atoi(value.str()) != 0); // FORK @feature 09/10/2026
+		else if (key.compareNoCase("generalPointsRate") == 0) generalPointsRate = (UnsignedInt)atoi(value.str()); // FORK @feature 09/10/2026
+		else if (key.compareNoCase("swTest") == 0) splitList(value, swTest); // FORK @feature 09/10/2026
 		else if (key.compareNoCase("capBuild") == 0)
 		{
 			std::vector<AsciiString> parts;

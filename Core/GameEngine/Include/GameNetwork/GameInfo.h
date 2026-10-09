@@ -200,6 +200,10 @@ public:
   void setSuperweaponRestriction( UnsignedShort restriction ); ///< Set the optional limits on superweapons
   UnsignedInt getLoadCap() const { return m_loadCap; } ///< FORK per-player build cap in load points (0 = off)
   void setLoadCap( UnsignedInt loadCap ) { m_loadCap = loadCap; } ///< FORK
+  Bool getSuperweaponsDisabled() const { return m_superweaponsDisabled; } ///< FORK superweapons can be built but never fire
+  void setSuperweaponsDisabled( Bool disabled ) { m_superweaponsDisabled = disabled; } ///< FORK
+  UnsignedInt getGeneralPointsRate() const { return m_generalPointsRate; } ///< FORK general's points rate in percent (100 = 1x)
+  void setGeneralPointsRate( UnsignedInt rate ) { m_generalPointsRate = rate; } ///< FORK
   inline const Money & getStartingCash() const;
   void setStartingCash( const Money & startingCash );
 
@@ -255,6 +259,8 @@ protected:
   Money         m_startingCash;
   UnsignedShort m_superweaponRestriction;
   UnsignedInt m_loadCap; ///< FORK per-player build cap in load points (0 = off)
+  Bool m_superweaponsDisabled; ///< FORK @feature 09/10/2026 superweapons can be built but never fire
+  UnsignedInt m_generalPointsRate; ///< FORK @feature 09/10/2026 general's points rate in percent (100 = 1x)
   Bool m_oldFactionsOnly; // Only USA, China, GLA -- not USA Air Force General, GLA Toxic General, et al
 };
 
