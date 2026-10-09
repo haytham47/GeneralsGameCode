@@ -55,6 +55,11 @@ struct BenchScenario
 	UnsignedInt loadCap;					///< per-player build cap passed in the game options (0 = off)
 	AsciiString capTestUnit;			///< capTest = <unit>:<factory>: checks the cap refuses that unit at the factory
 	AsciiString capTestFactory;
+	Int capQueue;									///< FORK @feature 09/10/2026 cap test variant: queue this many units at the factory just under the cap and trace the load
+	AsciiString capBuildStructure;	///< FORK @feature 09/10/2026 capBuild = <structure>:<builder>:<count>: the builder also starts that many structures
+	AsciiString capBuildBuilder;
+	Int capBuildCount;
+	std::vector<AsciiString> capPoints;	///< FORK @feature 09/10/2026 capPoints = T1, T2: report each template's load points (cap_points_<T>)
 	std::vector<AsciiString> slotFactions;
 	std::vector<BenchFactionSetup> factions;
 	std::vector<AsciiString> chokeWaypoints;

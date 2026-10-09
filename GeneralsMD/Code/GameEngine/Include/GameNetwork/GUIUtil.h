@@ -38,6 +38,13 @@ void PopulatePlayerTemplateComboBox(Int comboBox, GameWindow *comboArray[], Game
 void PopulateTeamComboBox(Int comboBox, GameWindow *comboArray[], GameInfo *myGame, Bool isObserver = FALSE);
 void PopulateStartingCashComboBox(GameWindow *comboBox, GameInfo *myGame);
 
+// FORK @feature 09/10/2026 Build cap selector created at runtime (the shipped .wnd files have no cap control).
+GameWindow *CreateLoadCapGadgets(GameWindow *templateComboBox, const char *templateLabelText, const char *comboBoxName,
+																 Int labelLeft, Int labelRight, Int comboLeft, Int comboRight, Int top, Int bottom);
+void PopulateLoadCapComboBox(GameWindow *comboBox, GameInfo *myGame);
+void SelectLoadCapComboBox(GameWindow *comboBox, UnsignedInt loadCap);
+UnsignedInt GetLoadCapComboBoxSelection(GameWindow *comboBox);
+
 void EnableSlotListUpdates( Bool val );
 Bool AreSlotListUpdatesEnabled();
 

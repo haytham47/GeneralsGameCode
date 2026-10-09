@@ -249,6 +249,8 @@ GameLogic::GameLogic()
 	m_gameMode = GAME_NONE;
 	m_rankLevelLimit = 1000;
 	m_loadCap = 0; // FORK @feature 08/10/2026 build cap off until a game starts
+	for (Int capIndex = 0; capIndex < MAX_PLAYER_COUNT; ++capIndex)
+		m_playerLoadCap[capIndex] = 0; // FORK @feature 09/10/2026 no faction-weighted caps until a game starts
 	m_pauseFrame = 0;
 	m_gamePaused = FALSE;
 	m_pauseSound = FALSE;
@@ -481,6 +483,8 @@ void GameLogic::reset()
 
 	m_rankPointsToAddAtGameStart = 0;
 	m_loadCap = 0; // FORK @feature 08/10/2026 build cap off between games
+	for (Int capIndex = 0; capIndex < MAX_PLAYER_COUNT; ++capIndex)
+		m_playerLoadCap[capIndex] = 0; // FORK @feature 09/10/2026 faction-weighted caps off between games
 }
 
 static Object * placeObjectAtPosition(Int slotNum, AsciiString objectTemplateName, Coord3D& pos, Player *pPlayer,
@@ -698,6 +702,94 @@ static void checkForDuplicateColors( GameInfo *game )
 			DEBUG_LOG(("Clearing color %d for player %d", colorIdx, i));
 		}
 	}
+}
+
+// ------------------------------------------------------------------------------------------------
+// FORK @feature 09/10/2026 Build cap weight of a faction in percent (fair cap relative to GLA, see the
+// faction weighting research of 09/10/2026). GLA needs more load points for the same army power.
+// ------------------------------------------------------------------------------------------------
+static Int getFactionLoadCapWeight( const AsciiString& baseSide )
+{
+	if (baseSide.compareNoCase("USA") == 0)
+		return 75;
+	if (baseSide.compareNoCase("China") == 0)
+		return 70;
+	return 100; // GLA and anything unknown
+}
+
+// ------------------------------------------------------------------------------------------------
+// FORK @feature 09/10/2026 Splits the match budget (playing slots x base cap) between the players by faction
+// weight: cap_i = budget * w_i / sum(w). The CPU cost of the match stays the same whatever factions are picked,
+// and a lobby of one faction keeps the base cap. Uses only synchronized data (game options and the factions
+// resolved from the logic seed) and integer math, so every PC computes the same caps.
+// ------------------------------------------------------------------------------------------------
+void GameLogic::computePlayerLoadCaps()
+{
+	Int i;
+	for (i = 0; i < MAX_PLAYER_COUNT; ++i)
+		m_playerLoadCap[i] = 0;
+
+	if (m_loadCap == 0 || TheGameInfo == nullptr)
+		return;
+
+	Int weights[MAX_SLOTS];
+	Int playerIndices[MAX_SLOTS];
+	Int numPlaying = 0;
+	Int weightSum = 0;
+	for (i = 0; i < MAX_SLOTS; ++i)
+	{
+		weights[i] = 0;
+		playerIndices[i] = -1;
+
+		const GameSlot *slot = TheGameInfo->getConstSlot(i);
+		if (!slot || !slot->isOccupied() || slot->getPlayerTemplate() == PLAYERTEMPLATE_OBSERVER)
+			continue;
+
+		const Player *player = ThePlayerList->getPlayerFromSlotIndex(i);
+		if (!player || player->getPlayerIndex() < 0 || player->getPlayerIndex() >= MAX_PLAYER_COUNT)
+			continue;
+
+		const PlayerTemplate *faction = ThePlayerTemplateStore->getNthPlayerTemplate(slot->getPlayerTemplate());
+		weights[i] = getFactionLoadCapWeight(faction ? faction->getBaseSide() : player->getBaseSide());
+		playerIndices[i] = player->getPlayerIndex();
+		weightSum += weights[i];
+		++numPlaying;
+	}
+
+	if (numPlaying == 0 || weightSum == 0)
+		return;
+
+	// 64-bit so a huge custom Options.ini LoadCap cannot overflow
+	const Int64 budget = (Int64)m_loadCap * numPlaying;
+	for (i = 0; i < MAX_SLOTS; ++i)
+	{
+		if (playerIndices[i] < 0)
+			continue;
+
+		// rounded to the nearest load point
+		Int64 cap64 = (budget * weights[i] + weightSum / 2) / weightSum;
+		if (cap64 > 0x7fffffff)
+			cap64 = 0x7fffffff;
+		const Int cap = (Int)cap64;
+		m_playerLoadCap[playerIndices[i]] = (UnsignedInt)(cap > 0 ? cap : 1);
+		DEBUG_LOG(("Build cap: slot %d player %d weight %d cap %d (base %u, %d players)",
+			i, playerIndices[i], weights[i], cap, m_loadCap, numPlaying));
+	}
+}
+
+// ------------------------------------------------------------------------------------------------
+// FORK @feature 09/10/2026 Build cap of one player: the faction-weighted cap for players in a game slot,
+// the base cap for everyone else (map and civilian players), 0 when the game has no cap.
+// ------------------------------------------------------------------------------------------------
+UnsignedInt GameLogic::getLoadCapForPlayer( Int playerIndex ) const
+{
+	if (m_loadCap == 0)
+		return 0;
+
+	if (playerIndex >= 0 && playerIndex < MAX_PLAYER_COUNT && m_playerLoadCap[playerIndex] != 0)
+		return m_playerLoadCap[playerIndex];
+
+	return m_loadCap;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1553,6 +1645,9 @@ void GameLogic::tryStartNewGame( Bool loadingSaveGame )
 	// update the player list to match the new map.
 	TheTeamFactory->reset();
 	ThePlayerList->newGame();
+
+	// FORK @feature 09/10/2026 Players and their (random-resolved) factions exist now: weight the build cap per faction.
+	computePlayerLoadCaps();
 
 	// update the loadscreen
 	updateLoadProgress(LOAD_PROGRESS_POST_PLAYER_LIST_RESET);

@@ -2949,7 +2949,8 @@ Bool Player::canBuildMoreOfType( const ThingTemplate *whatToBuild ) const
 {
   // FORK @feature 08/10/2026 Per-player build cap: refuse anything with load points that would go over the cap.
   // Objects with no load points are never blocked. The cap comes from the synchronized game options.
-  const UnsignedInt loadCap = TheGameLogic->getLoadCap();
+  // FORK @feature 09/10/2026 Each player has its own faction-weighted cap.
+  const UnsignedInt loadCap = TheGameLogic->getLoadCapForPlayer( getPlayerIndex() );
   if ( loadCap != 0 )
   {
     const Int cost = whatToBuild->getLoadPoints();

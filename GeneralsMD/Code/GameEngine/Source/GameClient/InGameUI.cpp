@@ -3802,7 +3802,8 @@ void InGameUI::postWindowDraw()
 	}
 
 	// FORK @feature 08/10/2026 Shows the local player's build cap usage when the game has a cap.
-	if (m_networkLatencyPointSize > 0 && TheGameLogic->getLoadCap() > 0)
+	// FORK @feature 09/10/2026 Shown even when the latency counter is turned off.
+	if (TheGameLogic->getLoadCap() > 0)
 	{
 		drawLoadCap(hudOffsetX, hudOffsetY);
 	}
@@ -6087,7 +6088,15 @@ void InGameUI::refreshNetworkLatencyResources()
 		m_loadCapString = TheDisplayStringManager->newDisplayString();
 		m_lastLoadCapText.clear();
 	}
-	m_loadCapString->setFont(latencyFont);
+	// FORK @feature 09/10/2026 With the latency counter off (size 0) the build cap keeps the default size 8.
+	if (m_networkLatencyPointSize > 0)
+	{
+		m_loadCapString->setFont(latencyFont);
+	}
+	else
+	{
+		m_loadCapString->setFont(TheWindowManager->winFindFont(m_networkLatencyFont, TheGlobalLanguageData->adjustFontSize(8), m_networkLatencyBold));
+	}
 }
 
 void InGameUI::refreshRenderFpsResources()
@@ -6312,7 +6321,8 @@ void InGameUI::drawLoadCap(Int &x, Int &y)
 	{
 		m_lastLoadCapUpdateMs = nowMs;
 		UnicodeString text;
-		text.format(L"Load %d/%u", localPlayer->getLoadPoints(), TheGameLogic->getLoadCap());
+		// FORK @feature 09/10/2026 Shows the player's own faction-weighted cap, e.g. "Cap 50/350".
+		text.format(L"Cap %d/%u", localPlayer->getLoadPoints(), TheGameLogic->getLoadCapForPlayer(localPlayer->getPlayerIndex()));
 		if (text.compare(m_lastLoadCapText) != 0)
 		{
 			m_loadCapString->setText(text);

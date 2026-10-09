@@ -1496,11 +1496,20 @@ const AudioEventRTS *ThingTemplate::getPerUnitSound(const AsciiString& soundName
 
 //-------------------------------------------------------------------------------------------------
 // FORK @feature 08/10/2026 Weight of this object against the per-player build cap (load points).
-// An INI "LoadPoints" value wins; otherwise: aircraft 4, other vehicles 3, infantry 1, structures 2, anything else 0.
+// An INI "LoadPoints" value wins; otherwise: aircraft 4, other vehicles 3, infantry 1, structures 2, anything else 0
+// (uncontrollable objects 0, see below).
 Int ThingTemplate::getLoadPoints() const
 {
 	if (m_loadPoints >= 0)
 		return m_loadPoints;
+	// FORK @tweak 09/10/2026 Objects the player cannot control do not count: things that are not selectable
+	// (Supply Drop Zone and paradrop cargo planes, A-10/B-52/B-3/Carpet Bomber/MiG strikes, artillery barrage
+	// cannons, Stinger Site soldiers), drones that ride along with a vehicle (NO_SELECT: battle, scout, hellfire,
+	// repair, spy drones) and aircraft that cannot be built (general power planes such as the Spectre Gunship).
+	if (!isKindOf(KINDOF_SELECTABLE) || isKindOf(KINDOF_NO_SELECT))
+		return 0;
+	if (isKindOf(KINDOF_AIRCRAFT) && m_buildCost == 0)
+		return 0;
 	if (isKindOf(KINDOF_STRUCTURE))
 		return 2;
 	if (isKindOf(KINDOF_AIRCRAFT))
