@@ -47,6 +47,7 @@
 #include "GameLogic/Module/SpecialPowerModule.h"
 #include "Common/SpecialPower.h"
 #include "GameLogic/Object.h"
+#include "GameLogic/PartitionManager.h"
 #include "GameLogic/ScriptEngine.h"
 #include "GameLogic/Scripts.h"
 #include "GameLogic/SidesList.h"
@@ -559,6 +560,9 @@ namespace
 				pos.y = s_start[0].y + (Real)sin(a) * 260.0f;
 				pos.z = TheTerrainLogic->getGroundHeight(pos.x, pos.y);
 				obj = TheBuildAssistant->buildObjectNow(nullptr, tmpl, &pos, tmpl->getPlacementViewAngle(), s_players[0]);
+				// finished like a dozer does it, so the structure gets its completed-building vision (reveal to all)
+				if (obj)
+					obj->clearStatus( MAKE_OBJECT_STATUS_MASK( OBJECT_STATUS_UNDER_CONSTRUCTION ) );
 			}
 			s_swObjects.push_back(obj ? obj->getID() : INVALID_ID);
 		}
@@ -618,6 +622,13 @@ namespace
 			AsciiString key;
 			key.format("sw_%s_fired", s_scenario.swTest[i].str());
 			Bench::setInfoInt(key.str(), didFire ? 1 : 0);
+			// FORK @bugfix 09/10/2026 Can slot 1 (the enemy) see the structure through the fog? 1 = cell clear for it.
+			if (s_players[1])
+			{
+				const Bool enemySees = ThePartitionManager->getShroudStatusForPlayer(s_players[1]->getPlayerIndex(), obj->getPosition()) == CELLSHROUD_CLEAR;
+				key.format("sw_%s_enemy_sees", s_scenario.swTest[i].str());
+				Bench::setInfoInt(key.str(), enemySees ? 1 : 0);
+			}
 		}
 		Bench::setInfoInt("sw_tested", tested);
 		Bench::setInfoInt("sw_fired", fired);

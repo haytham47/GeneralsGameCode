@@ -237,6 +237,7 @@ public:
   UnsignedInt getLoadCapForPlayer( Int playerIndex ) const; ///< FORK faction-weighted build cap of one player (0 = off)
   Bool areSuperweaponsDisabled() const { return m_superweaponsDisabled; } ///< FORK superweapons can be built but never fire
   Bool isSuperweaponBlocked( const SpecialPowerTemplate *power ) const; ///< FORK TRUE if this power is a superweapon and they are disabled
+  Bool isDisabledSuperweaponObject( const Object *obj ) const; ///< FORK TRUE if obj holds a superweapon power and they are disabled
   Int getGeneralPointsRate() const { return m_generalPointsRate; } ///< FORK general's points rate in percent (100 = 1x)
   void setSuperweaponRestriction();
 

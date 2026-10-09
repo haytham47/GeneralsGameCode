@@ -809,6 +809,18 @@ void InitLanGameGadgets()
   DEBUG_ASSERTCRASH(comboBoxStartingCash, ("Could not find the comboBoxStartingCash"));
 	PopulateStartingCashComboBox(comboBoxStartingCash, TheLAN->GetMyGame());
 
+	// FORK @feature 09/10/2026 General's points rate selector under the build cap; the chat box starts one row lower.
+	// FORK @bugfix 09/10/2026 Created before the first-row combos: a new window goes on top of its siblings, and the
+	// build cap list opens down over this row, so it must be created later to be drawn above it.
+	comboBoxGeneralPointsID = TheNameKeyGenerator->nameToKey( "LanGameOptionsMenu.wnd:ComboBoxGeneralPoints" );
+	comboBoxGeneralPoints = CreateLobbyComboGadgets( comboBoxStartingCash, "GUI:StartingMoney", "LanGameOptionsMenu.wnd:ComboBoxGeneralPoints",
+		L"Gen. Points:", L"How fast the general's rank (skill) points come from kills and abilities. Unit veterancy is not affected.",
+		536, 626, 628, 700, 360, 384 );
+	DEBUG_ASSERTCRASH(comboBoxGeneralPoints, ("Could not create the comboBoxGeneralPoints"));
+	PopulateGeneralPointsRateComboBox(comboBoxGeneralPoints, TheLAN->GetMyGame());
+	if (comboBoxGeneralPoints)
+		ShrinkWindowTopToLayoutY( listboxChatWindowLanGame, 388 );
+
 	// FORK @feature 09/10/2026 Build cap selector right of the superweapons selector (800x600 layout coordinates).
 	comboBoxLoadCapID = TheNameKeyGenerator->nameToKey( "LanGameOptionsMenu.wnd:ComboBoxLoadCap" );
 	comboBoxLoadCap = CreateLoadCapGadgets( comboBoxStartingCash, "GUI:StartingMoney", "LanGameOptionsMenu.wnd:ComboBoxLoadCap",
@@ -826,16 +838,6 @@ void InitLanGameGadgets()
 	if (comboBoxSuperweapons && checkboxLimitSuperweapons)
 		checkboxLimitSuperweapons->winHide( TRUE );
 	PopulateSuperweaponsComboBox(comboBoxSuperweapons, TheLAN->GetMyGame());
-
-	// FORK @feature 09/10/2026 General's points rate selector under the build cap; the chat box starts one row lower.
-	comboBoxGeneralPointsID = TheNameKeyGenerator->nameToKey( "LanGameOptionsMenu.wnd:ComboBoxGeneralPoints" );
-	comboBoxGeneralPoints = CreateLobbyComboGadgets( comboBoxStartingCash, "GUI:StartingMoney", "LanGameOptionsMenu.wnd:ComboBoxGeneralPoints",
-		L"Gen. Points:", L"How fast the general's rank (skill) points come from kills and abilities. Unit veterancy is not affected.",
-		536, 626, 628, 700, 360, 384 );
-	DEBUG_ASSERTCRASH(comboBoxGeneralPoints, ("Could not create the comboBoxGeneralPoints"));
-	PopulateGeneralPointsRateComboBox(comboBoxGeneralPoints, TheLAN->GetMyGame());
-	if (comboBoxGeneralPoints)
-		ShrinkWindowTopToLayoutY( listboxChatWindowLanGame, 388 );
 
 	windowMap = TheWindowManager->winGetWindowFromId( parentLanGameOptions,windowMapID  );
 	DEBUG_ASSERTCRASH(windowMap, ("Could not find the LanGameOptionsMenu.wnd:MapWindow" ));

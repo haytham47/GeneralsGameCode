@@ -803,24 +803,43 @@ UnsignedInt GameLogic::getLoadCapForPlayer( Int playerIndex ) const
 // Player::onStructureConstructionComplete uses; "PublicTimer" is no good here because retail data also sets it on
 // unused general powers. Only synchronized data is read, so every PC gives the same answer.
 // ------------------------------------------------------------------------------------------------
+static const SpecialPowerType s_superweaponPowerTypes[] =
+{
+	SPECIAL_PARTICLE_UPLINK_CANNON,
+	SUPW_SPECIAL_PARTICLE_UPLINK_CANNON,
+	LAZR_SPECIAL_PARTICLE_UPLINK_CANNON,
+	SPECIAL_NEUTRON_MISSILE,
+	NUKE_SPECIAL_NEUTRON_MISSILE,
+	SUPW_SPECIAL_NEUTRON_MISSILE,
+	SPECIAL_SCUD_STORM
+};
+
 Bool GameLogic::isSuperweaponBlocked( const SpecialPowerTemplate *power ) const
 {
 	if (!m_superweaponsDisabled || power == nullptr)
 		return FALSE;
 
-	switch (power->getSpecialPowerType())
+	for (Int i = 0; i < ARRAY_SIZE(s_superweaponPowerTypes); ++i)
 	{
-		case SPECIAL_PARTICLE_UPLINK_CANNON:
-		case SUPW_SPECIAL_PARTICLE_UPLINK_CANNON:
-		case LAZR_SPECIAL_PARTICLE_UPLINK_CANNON:
-		case SPECIAL_NEUTRON_MISSILE:
-		case NUKE_SPECIAL_NEUTRON_MISSILE:
-		case SUPW_SPECIAL_NEUTRON_MISSILE:
-		case SPECIAL_SCUD_STORM:
+		if (power->getSpecialPowerType() == s_superweaponPowerTypes[i])
 			return TRUE;
-		default:
-			return FALSE;
 	}
+	return FALSE;
+}
+
+// FORK @bugfix 09/10/2026 A superweapon structure (any object holding one of the superweapon powers) while
+// superweapons are disabled: it must not reveal itself to enemies through the fog like a working superweapon does.
+Bool GameLogic::isDisabledSuperweaponObject( const Object *obj ) const
+{
+	if (!m_superweaponsDisabled || obj == nullptr)
+		return FALSE;
+
+	for (Int i = 0; i < ARRAY_SIZE(s_superweaponPowerTypes); ++i)
+	{
+		if (obj->hasSpecialPower(s_superweaponPowerTypes[i]))
+			return TRUE;
+	}
+	return FALSE;
 }
 
 // ------------------------------------------------------------------------------------------------
