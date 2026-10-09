@@ -88,7 +88,10 @@ Limits how much each player can own, so very large late-game armies cannot slow 
 - *Disabled:* Particle Cannon, Nuclear Missile and SCUD Storm (every general's version) can still be built and
   upgraded, but they never fire, not for players, the AI or map scripts. Their button stays greyed, there are no
   countdown timers and no "superweapon detected/ready" announcements. The limit of one per type does not apply.
+- *Fog of war:* a working superweapon normally shows itself to every enemy through the fog. A disabled one does not:
+  enemies only see it once they scout it, like any other building.
 - The skirmish AI still builds them (wasted money for it).
+- Only the host can change it in the LAN lobby; the other players see the choice.
 
 **General's points rate** (LAN lobby, off by default)
 
