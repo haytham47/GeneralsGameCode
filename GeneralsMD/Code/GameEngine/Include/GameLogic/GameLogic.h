@@ -233,6 +233,7 @@ public:
 
   UnsignedShort getSuperweaponRestriction() const; ///< Get any optional limits on superweapons
   UnsignedInt getLoadCap() const { return m_loadCap; } ///< FORK per-player build cap in load points (0 = off)
+  UnsignedInt getLoadCapForPlayer( Int playerIndex ) const; ///< FORK faction-weighted build cap of one player (0 = off)
   void setSuperweaponRestriction();
 
 #ifdef DUMP_PERF_STATS
@@ -434,6 +435,8 @@ private:
 	Int m_rankLevelLimit;
   UnsignedShort m_superweaponRestriction;
   UnsignedInt m_loadCap; ///< FORK per-player build cap in load points (0 = off), copied from the game options
+  UnsignedInt m_playerLoadCap[MAX_PLAYER_COUNT]; ///< FORK faction-weighted cap per player index (0 = use m_loadCap)
+  void computePlayerLoadCaps(); ///< FORK splits the match budget (players x m_loadCap) by faction weight
 
 	LoadScreen *getLoadScreen( Bool loadSaveGame );
 	LoadScreen *m_loadScreen;

@@ -30,6 +30,7 @@
 #include "GameNetwork/GUIUtil.h"
 #include "GameNetwork/NetworkDefs.h"
 #include "GameClient/GameWindowManager.h"
+#include "GameClient/Display.h" // FORK @feature 09/10/2026 TheDisplay for the build cap selector layout
 #include "GameClient/MapUtil.h"
 #include "Common/NameKeyGenerator.h"
 
@@ -355,6 +356,266 @@ void PopulateStartingCashComboBox(GameWindow *comboBox, GameInfo *myGame)
   }
 
   GadgetComboBoxSetSelectedPos(comboBox, currentSelectionIndex);
+}
+
+// -----------------------------------------------------------------------------
+// FORK @feature 09/10/2026 Build cap selector. The lobby layouts come from WindowZH.big and have no cap control,
+// so the combo box and its label are created here as copies of existing gadgets (same images, colors and font).
+// That keeps the feature in the exe: no .wnd override file to hand out to LAN players.
+// -----------------------------------------------------------------------------
+static const UnsignedInt s_loadCapChoices[] = { 0, 350, 450, 650, 900, 1200 }; // 0 = no limit
+
+static void copyWindowDrawData( WinInstanceData *dst, WinInstanceData *src )
+{
+	for( Int i = 0; i < MAX_DRAW_DATA; i++ )
+	{
+		dst->m_enabledDrawData[ i ] = src->m_enabledDrawData[ i ];
+		dst->m_disabledDrawData[ i ] = src->m_disabledDrawData[ i ];
+		dst->m_hiliteDrawData[ i ] = src->m_hiliteDrawData[ i ];
+	}
+}
+
+static void copyWindowDrawData( GameWindow *dst, GameWindow *src )
+{
+	if( dst && src )
+		copyWindowDrawData( dst->winGetInstanceData(), src->winGetInstanceData() );
+}
+
+static void copyGadgetLook( WinInstanceData *dst, WinInstanceData *src )
+{
+	copyWindowDrawData( dst, src );
+	dst->m_enabledText = src->m_enabledText;
+	dst->m_disabledText = src->m_disabledText;
+	dst->m_hiliteText = src->m_hiliteText;
+	dst->m_imeCompositeText = src->m_imeCompositeText;
+	dst->m_imageOffset = src->m_imageOffset;
+	dst->m_font = src->m_font;
+	dst->m_headerTemplateName = src->m_headerTemplateName;
+	dst->m_tooltipDelay = src->m_tooltipDelay;
+}
+
+// Converts a rectangle of the 800x600 layout to a position relative to the parent window (as the .wnd loader does).
+static void layoutRectToParent( GameWindow *parent, Int left, Int top, Int right, Int bottom,
+																Int *x, Int *y, Int *width, Int *height )
+{
+	const Real xScale = (Real)TheDisplay->getWidth() / 800.0f;
+	const Real yScale = (Real)TheDisplay->getHeight() / 600.0f;
+	const Int screenLeft = (Int)((Real)left * xScale);
+	const Int screenTop = (Int)((Real)top * yScale);
+	const Int screenRight = (Int)((Real)right * xScale);
+	const Int screenBottom = (Int)((Real)bottom * yScale);
+
+	Int parentX = 0;
+	Int parentY = 0;
+	if( parent )
+		parent->winGetScreenPosition( &parentX, &parentY );
+
+	*x = screenLeft - parentX;
+	*y = screenTop - parentY;
+	*width = screenRight - screenLeft;
+	*height = screenBottom - screenTop;
+}
+
+static GameWindow *findStaticTextByLabel( GameWindow *parent, const char *label )
+{
+	if( !parent || !label )
+		return nullptr;
+
+	for( GameWindow *child = parent->winGetChild(); child; child = child->winGetNext() )
+	{
+		if( BitIsSet( child->winGetStyle(), GWS_STATIC_TEXT ) &&
+				child->winGetInstanceData()->m_textLabelString.compareNoCase( label ) == 0 )
+			return child;
+	}
+	return nullptr;
+}
+
+GameWindow *CreateLoadCapGadgets(GameWindow *templateComboBox, const char *templateLabelText, const char *comboBoxName,
+																 Int labelLeft, Int labelRight, Int comboLeft, Int comboRight, Int top, Int bottom)
+{
+	if( !templateComboBox || !comboBoxName )
+		return nullptr;
+
+	GameWindow *parent = templateComboBox->winGetParent();
+	const NameKeyType comboBoxID = NAMEKEY( comboBoxName );
+
+	// the layout may be shown again without being reloaded: reuse what we made last time
+	GameWindow *existing = TheWindowManager->winGetWindowFromId( parent, comboBoxID );
+	if( existing )
+		return existing;
+
+	const UnicodeString tooltip = L"Build cap per player in load points (infantry 1, structure 2, vehicle 3, aircraft 4). "
+		L"The total of all players is split by faction: USA 75%, China 70%, GLA 100%.";
+	Int x, y, width, height;
+
+	// label, copied from the label next to the template combo box
+	GameWindow *templateLabel = findStaticTextByLabel( parent, templateLabelText );
+	TextData *templateTextData = templateLabel ? (TextData *)templateLabel->winGetUserData() : nullptr;
+	if( templateLabel && templateTextData )
+	{
+		WinInstanceData labelInst;
+		labelInst.init();
+		copyGadgetLook( &labelInst, templateLabel->winGetInstanceData() );
+		labelInst.m_style = templateLabel->winGetStyle();
+		labelInst.m_status = templateLabel->winGetInstanceData()->m_status;
+		labelInst.m_owner = templateLabel->winGetOwner();
+		labelInst.setTooltipText( tooltip );
+
+		TextData textData = *templateTextData;
+		textData.text = nullptr;
+
+		layoutRectToParent( parent, labelLeft, top, labelRight, bottom, &x, &y, &width, &height );
+		GameWindow *label = TheWindowManager->gogoGadgetStaticText( parent,
+			templateLabel->winGetStatus() & ~WIN_STATUS_HIDDEN, x, y, width, height,
+			&labelInst, &textData, labelInst.m_font, FALSE );
+		if( label )
+		{
+			label->winSetOwner( templateLabel->winGetOwner() );
+			GadgetStaticTextSetText( label, UnicodeString( L"Build Cap:" ) );
+		}
+	}
+	else
+	{
+		DEBUG_LOG(( "CreateLoadCapGadgets: no '%s' label next to the template combo box, the cap has no label", templateLabelText ));
+	}
+
+	// combo box, copied from the template combo box (same steps as the .wnd loader)
+	WinInstanceData comboInst;
+	comboInst.init();
+	copyGadgetLook( &comboInst, templateComboBox->winGetInstanceData() );
+	comboInst.m_style = templateComboBox->winGetStyle();
+	comboInst.m_owner = templateComboBox->winGetOwner();
+	comboInst.m_decoratedNameString = comboBoxName;
+	comboInst.m_id = (Int)comboBoxID;
+	comboInst.setTooltipText( tooltip );
+
+	ComboBoxData *templateData = (ComboBoxData *)templateComboBox->winGetUserData();
+	ComboBoxData comboData;
+	memset( &comboData, 0, sizeof( comboData ) );
+	if( templateData )
+	{
+		comboData.isEditable = templateData->isEditable;
+		comboData.maxDisplay = templateData->maxDisplay;
+		comboData.maxChars = templateData->maxChars;
+		comboData.asciiOnly = templateData->asciiOnly;
+		comboData.lettersAndNumbersOnly = templateData->lettersAndNumbersOnly;
+	}
+	else
+	{
+		comboData.maxDisplay = 6;
+		comboData.maxChars = 16;
+	}
+	// gogoGadgetComboBox copies these two and deletes them
+	comboData.entryData = NEW EntryData;
+	memset( comboData.entryData, 0, sizeof( EntryData ) );
+	comboData.entryData->aSCIIOnly = comboData.asciiOnly;
+	comboData.entryData->alphaNumericalOnly = comboData.lettersAndNumbersOnly;
+	comboData.entryData->maxTextLen = comboData.maxChars;
+	comboData.listboxData = NEW ListboxData;
+	memset( comboData.listboxData, 0, sizeof( ListboxData ) );
+	comboData.listboxData->listLength = 10;
+	comboData.listboxData->scrollBar = 1;
+	comboData.listboxData->forceSelect = 1;
+	comboData.listboxData->columns = 1;
+
+	layoutRectToParent( parent, comboLeft, top, comboRight, bottom, &x, &y, &width, &height );
+	GameWindow *comboBox = TheWindowManager->gogoGadgetComboBox( parent,
+		templateComboBox->winGetStatus() & ~WIN_STATUS_HIDDEN, x, y, width, height,
+		&comboInst, &comboData, comboInst.m_font, FALSE );
+	if( !comboBox )
+		return nullptr;
+
+	comboBox->winSetWindowId( comboBoxID );
+	comboBox->winSetOwner( templateComboBox->winGetOwner() );
+
+	// the sub windows get the template's images too
+	copyWindowDrawData( GadgetComboBoxGetDropDownButton( comboBox ), GadgetComboBoxGetDropDownButton( templateComboBox ) );
+	copyWindowDrawData( GadgetComboBoxGetEditBox( comboBox ), GadgetComboBoxGetEditBox( templateComboBox ) );
+	GameWindow *listBox = GadgetComboBoxGetListBox( comboBox );
+	GameWindow *templateListBox = GadgetComboBoxGetListBox( templateComboBox );
+	if( listBox && templateListBox )
+	{
+		copyWindowDrawData( listBox, templateListBox );
+		copyWindowDrawData( GadgetListBoxGetUpButton( listBox ), GadgetListBoxGetUpButton( templateListBox ) );
+		copyWindowDrawData( GadgetListBoxGetDownButton( listBox ), GadgetListBoxGetDownButton( templateListBox ) );
+		GameWindow *slider = GadgetListBoxGetSlider( listBox );
+		GameWindow *templateSlider = GadgetListBoxGetSlider( templateListBox );
+		copyWindowDrawData( slider, templateSlider );
+		if( slider && templateSlider )
+			copyWindowDrawData( slider->winGetChild(), templateSlider->winGetChild() );
+	}
+
+	return comboBox;
+}
+
+static UnicodeString formatLoadCapForComboBox( UnsignedInt loadCap )
+{
+	UnicodeString rtn;
+	if( loadCap == 0 )
+		rtn = L"No limit";
+	else
+		rtn.format( L"%u", loadCap );
+	return rtn;
+}
+
+void PopulateLoadCapComboBox(GameWindow *comboBox, GameInfo *myGame)
+{
+	if( !comboBox )
+		return;
+
+	GadgetComboBoxReset( comboBox );
+	const Color color = comboBox->winGetEnabled() ? comboBox->winGetEnabledTextColor() : comboBox->winGetDisabledTextColor();
+	const UnsignedInt current = myGame ? myGame->getLoadCap() : 0;
+	Bool sawCurrent = FALSE;
+
+	for( Int i = 0; i < ARRAY_SIZE( s_loadCapChoices ); ++i )
+	{
+		Int newIndex = GadgetComboBoxAddEntry( comboBox, formatLoadCapForComboBox( s_loadCapChoices[i] ), color );
+		GadgetComboBoxSetItemData( comboBox, newIndex, (void *)s_loadCapChoices[i] );
+		if( s_loadCapChoices[i] == current )
+			sawCurrent = TRUE;
+	}
+
+	// a custom value from Options.ini LoadCap stays selectable
+	if( !sawCurrent )
+	{
+		Int newIndex = GadgetComboBoxAddEntry( comboBox, formatLoadCapForComboBox( current ), color );
+		GadgetComboBoxSetItemData( comboBox, newIndex, (void *)current );
+	}
+
+	SelectLoadCapComboBox( comboBox, current );
+}
+
+void SelectLoadCapComboBox(GameWindow *comboBox, UnsignedInt loadCap)
+{
+	if( !comboBox )
+		return;
+
+	const Int itemCount = GadgetComboBoxGetLength( comboBox );
+	for( Int index = 0; index < itemCount; ++index )
+	{
+		if( (UnsignedInt)GadgetComboBoxGetItemData( comboBox, index ) == loadCap )
+		{
+			GadgetComboBoxSetSelectedPos( comboBox, index, TRUE );
+			return;
+		}
+	}
+
+	// the host picked a value this list does not have (custom Options.ini LoadCap): add it
+	const Color color = comboBox->winGetEnabled() ? comboBox->winGetEnabledTextColor() : comboBox->winGetDisabledTextColor();
+	Int newIndex = GadgetComboBoxAddEntry( comboBox, formatLoadCapForComboBox( loadCap ), color );
+	GadgetComboBoxSetItemData( comboBox, newIndex, (void *)loadCap );
+	GadgetComboBoxSetSelectedPos( comboBox, newIndex, TRUE );
+}
+
+UnsignedInt GetLoadCapComboBoxSelection(GameWindow *comboBox)
+{
+	Int selIndex = -1;
+	if( comboBox )
+		GadgetComboBoxGetSelectedPos( comboBox, &selIndex );
+	if( selIndex < 0 )
+		return 0;
+	return (UnsignedInt)GadgetComboBoxGetItemData( comboBox, selIndex );
 }
 
 // -----------------------------------------------------------------------------

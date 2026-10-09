@@ -115,6 +115,7 @@ static NameKeyType buttonChatID = NAMEKEY_INVALID;
 static NameKeyType buttonSelectMapID = NAMEKEY_INVALID;
 static NameKeyType checkboxLimitSuperweaponsID = NAMEKEY_INVALID;
 static NameKeyType comboBoxStartingCashID = NAMEKEY_INVALID;
+static NameKeyType comboBoxLoadCapID = NAMEKEY_INVALID; // FORK @feature 09/10/2026 build cap selector (created at runtime)
 static NameKeyType windowMapID = NAMEKEY_INVALID;
 // Window Pointers ------------------------------------------------------------------------
 static GameWindow *parentLanGameOptions = nullptr;
@@ -126,6 +127,7 @@ static GameWindow *textEntryChat = nullptr;
 static GameWindow *textEntryMapDisplay = nullptr;
 static GameWindow *checkboxLimitSuperweapons = nullptr;
 static GameWindow *comboBoxStartingCash = nullptr;
+static GameWindow *comboBoxLoadCap = nullptr; // FORK @feature 09/10/2026
 static GameWindow *windowMap = nullptr;
 
 static GameWindow *comboBoxPlayer[MAX_SLOTS] = {0};
@@ -626,6 +628,37 @@ static void handleStartingCashSelection()
   }
 }
 
+// FORK @feature 09/10/2026 Only the host picks the build cap; it goes to every player with the game options and is
+// remembered in the host's Options.ini (LoadCap), which skirmish uses too.
+static void handleLoadCapSelection()
+{
+  LANGameInfo *myGame = TheLAN->GetMyGame();
+  if (!myGame || !myGame->amIHost())
+    return;
+
+  const UnsignedInt loadCap = GetLoadCapComboBoxSelection(comboBoxLoadCap);
+  if (loadCap == myGame->getLoadCap())
+    return;
+
+  myGame->setLoadCap( loadCap );
+  myGame->resetAccepted();
+
+  {
+    OptionPreferences optionPref;
+    AsciiString value;
+    value.format("%u", loadCap);
+    optionPref["LoadCap"] = value;
+    optionPref.write();
+  }
+
+  if (!s_isIniting)
+  {
+    // send around the new data
+    TheLAN->RequestGameOptions(GenerateGameOptionsString(), true);
+    lanUpdateSlotList(); // Update the accepted button UI
+  }
+}
+
 static void handleLimitSuperweaponsClick()
 {
   LANGameInfo *myGame = TheLAN->GetMyGame();
@@ -706,6 +739,13 @@ void InitLanGameGadgets()
   comboBoxStartingCash = TheWindowManager->winGetWindowFromId( parentLanGameOptions, comboBoxStartingCashID );
   DEBUG_ASSERTCRASH(comboBoxStartingCash, ("Could not find the comboBoxStartingCash"));
 	PopulateStartingCashComboBox(comboBoxStartingCash, TheLAN->GetMyGame());
+
+	// FORK @feature 09/10/2026 Build cap selector right of "Limit Superweapons" (800x600 layout coordinates).
+	comboBoxLoadCapID = TheNameKeyGenerator->nameToKey( "LanGameOptionsMenu.wnd:ComboBoxLoadCap" );
+	comboBoxLoadCap = CreateLoadCapGadgets( comboBoxStartingCash, "GUI:StartingMoney", "LanGameOptionsMenu.wnd:ComboBoxLoadCap",
+		610, 680, 682, 752, 332, 356 );
+	DEBUG_ASSERTCRASH(comboBoxLoadCap, ("Could not create the comboBoxLoadCap"));
+	PopulateLoadCapComboBox(comboBoxLoadCap, TheLAN->GetMyGame());
 
 	windowMap = TheWindowManager->winGetWindowFromId( parentLanGameOptions,windowMapID  );
 	DEBUG_ASSERTCRASH(windowMap, ("Could not find the LanGameOptionsMenu.wnd:MapWindow" ));
@@ -801,6 +841,7 @@ void DeinitLanGameGadgets()
 	textEntryMapDisplay = nullptr;
   checkboxLimitSuperweapons = nullptr;
   comboBoxStartingCash = nullptr;
+	comboBoxLoadCap = nullptr; // FORK @feature 09/10/2026
 	if (windowMap)
 	{
 		windowMap->winSetUserData(nullptr);
@@ -893,6 +934,8 @@ void LanGameOptionsMenuInit( WindowLayout *layout, void *userData )
 		buttonSelectMap->winEnable( FALSE );
     checkboxLimitSuperweapons->winEnable( FALSE ); // Can look but only host can touch
     comboBoxStartingCash->winEnable( FALSE );      // Ditto
+		if (comboBoxLoadCap)
+			comboBoxLoadCap->winEnable( FALSE );         // FORK @feature 09/10/2026 Ditto
 		TheLAN->GetMyGame()->setMapCRC( TheLAN->GetMyGame()->getMapCRC() );		// force a recheck
 		TheLAN->GetMyGame()->setMapSize( TheLAN->GetMyGame()->getMapSize() ); // of if we have the map
 		TheLAN->RequestHasMap();
@@ -982,6 +1025,9 @@ void updateGameOptions()
     }
 
     DEBUG_ASSERTCRASH( index < itemCount, ("Could not find new starting cash amount %d in list", theGame->getStartingCash().countMoney() ) );
+
+		// FORK @feature 09/10/2026 Show the host's build cap.
+		SelectLoadCapComboBox( comboBoxLoadCap, theGame->getLoadCap() );
 	}
 }
 
@@ -1165,6 +1211,10 @@ WindowMsgHandledType LanGameOptionsMenuSystem( GameWindow *window, UnsignedInt m
         if ( controlID == comboBoxStartingCashID )
         {
           handleStartingCashSelection();
+        }
+        else if ( controlID == comboBoxLoadCapID )
+        {
+          handleLoadCapSelection(); // FORK @feature 09/10/2026
         }
         else
         {

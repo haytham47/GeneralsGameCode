@@ -43,6 +43,7 @@
 #include "GameLogic/GameLogic.h"
 #include "GameLogic/Module/AIUpdate.h"
 #include "GameLogic/Module/CreateModule.h"
+#include "GameLogic/Module/ProductionUpdate.h"
 #include "GameLogic/Object.h"
 #include "GameLogic/ScriptEngine.h"
 #include "GameLogic/Scripts.h"
@@ -75,6 +76,19 @@ namespace
 
 	// Client-side bookkeeping for the freeze proxy: ObjectID -> logic frame since which the unit waits for a path.
 	std::map<ObjectID, UnsignedInt> s_waitingSince;
+
+	// FORK @feature 09/10/2026 capQueue trace: slot 0 load points, sampled once per second after the queue is filled.
+	Bool s_capTraceActive = FALSE;
+	ObjectID s_capTraceFactory = INVALID_ID;
+	AsciiString s_capTrace;
+	Int s_capTraceMin = 0x7fffffff;
+	Int s_capTraceMax = 0;
+
+	void countLiveObjects(Object *obj, void *userData)
+	{
+		if (!obj->isEffectivelyDead())
+			++*(Int *)userData;
+	}
 
 	const UnsignedInt FREEZE_FRAMES = 90; ///< waiting longer than 3 s for a path counts as a frozen unit
 
@@ -320,6 +334,15 @@ namespace
 	// queue, dozers and the AI) refuse it. Results go to summary.json (cap_test_ok = 1 when everything holds).
 	void runCapTest()
 	{
+		// FORK @feature 09/10/2026 Load points of the listed templates (-1 = template not found).
+		for (size_t i = 0; i < s_scenario.capPoints.size(); ++i)
+		{
+			const ThingTemplate *tmpl = TheThingFactory->findTemplate(s_scenario.capPoints[i]);
+			AsciiString key;
+			key.format("cap_points_%s", s_scenario.capPoints[i].str());
+			Bench::setInfoInt(key.str(), tmpl ? tmpl->getLoadPoints() : -1);
+		}
+
 		if (s_scenario.capTestUnit.isEmpty())
 			return;
 		Player *player = s_players[0];
@@ -341,7 +364,104 @@ namespace
 			return;
 		}
 
-		const Int cap = (Int)TheGameLogic->getLoadCap();
+		const Int cap = (Int)TheGameLogic->getLoadCapForPlayer(player->getPlayerIndex()); // FORK @feature 09/10/2026 faction-weighted cap of this player
+
+		// FORK @feature 09/10/2026 Queue variant: fill up to just under the cap, then fill the factory queue up to the cap
+		// through the normal production path. postLogicUpdate traces the load every second while the queue drains.
+		if (s_scenario.capQueue > 0)
+		{
+			const Coord3D anchor = lerp(s_start[0], s_centre, 0.18f);
+			Int room = s_scenario.capQueue * unit->getLoadPoints();
+
+			// optional: builders (one per structure) that start structures once the queue is full
+			const ThingTemplate *structTmpl = s_scenario.capBuildStructure.isEmpty() ? nullptr : TheThingFactory->findTemplate(s_scenario.capBuildStructure);
+			const ThingTemplate *builderTmpl = s_scenario.capBuildBuilder.isEmpty() ? nullptr : TheThingFactory->findTemplate(s_scenario.capBuildBuilder);
+			std::vector<Object *> builders;
+			if (structTmpl && builderTmpl)
+			{
+				for (Int b = 0; b < s_scenario.capBuildCount; ++b)
+				{
+					Coord3D pos = lerp(s_start[0], s_centre, 0.10f);
+					pos.x += (Real)b * 15.0f;
+					Object *builder = spawnUnit(player, builderTmpl, pos);
+					if (builder)
+						builders.push_back(builder);
+				}
+				room += (Int)builders.size() * structTmpl->getLoadPoints();
+			}
+
+			Int spawned = 0;
+			while (player->getLoadPoints() + unit->getLoadPoints() + room <= cap && spawned < 1000)
+			{
+				Coord3D pos;
+				pos.x = anchor.x + (Real)(spawned % 20) * 12.0f;
+				pos.y = anchor.y + (Real)(spawned / 20) * 12.0f;
+				pos.z = 0.0f;
+				if (!spawnUnit(player, unit, pos))
+					break;
+				++spawned;
+			}
+			Int started = 0;
+			for (size_t b = 0; b < builders.size(); ++b)
+			{
+				// spots around the base, away from the spawned units; the first legal one per builder is used
+				for (Int attempt = 0; attempt < 48; ++attempt)
+				{
+					const Real angle = (Real)(b * 48 + attempt) * 0.61f;
+					const Real dist = 120.0f + (Real)(attempt % 8) * 40.0f;
+					Coord3D pos = s_start[0];
+					pos.x += dist * (Real)cos(angle);
+					pos.y += dist * (Real)sin(angle);
+					pos.z = TheTerrainLogic->getGroundHeight(pos.x, pos.y);
+					const LegalBuildCode lbc = TheBuildAssistant->isLocationLegalToBuild(&pos, structTmpl, 0.0f,
+						BuildAssistant::TERRAIN_RESTRICTIONS | BuildAssistant::CLEAR_PATH | BuildAssistant::NO_OBJECT_OVERLAP |
+						BuildAssistant::SHROUD_REVEALED, builders[b], nullptr);
+					if (b == 0 && attempt == 0)
+						Bench::setInfoInt("cap_build_first_lbc", (Int)lbc);
+					if (lbc != LBC_OK)
+						continue;
+					if (TheBuildAssistant->buildObjectNow(builders[b], structTmpl, &pos, 0.0f, player))
+						++started;
+					break;
+				}
+			}
+			const Int loadBeforeQueue = player->getLoadPoints();
+			Int queued = 0;
+			ProductionUpdateInterface *pui = factory->getProductionUpdateInterface();
+			for (Int q = 0; pui && q < s_scenario.capQueue + 2; ++q)
+			{
+				if (pui->queueCreateUnit(unit, pui->requestUniqueUnitID()))
+					++queued;
+			}
+			// FORK @feature 09/10/2026 Reservation check: allowed while load + unit points fit, refused once they do not.
+			Bench::setInfoInt("cap_queue_can_build_after_queue", player->canBuildMoreOfType(unit) ? 1 : 0);
+			Int extraSpawned = 0;
+			while (player->getLoadPoints() + unit->getLoadPoints() <= cap && extraSpawned < 100)
+			{
+				Coord3D pos;
+				pos.x = anchor.x + (Real)((spawned + extraSpawned) % 20) * 12.0f;
+				pos.y = anchor.y + (Real)((spawned + extraSpawned) / 20) * 12.0f + 60.0f;
+				pos.z = 0.0f;
+				if (!spawnUnit(player, unit, pos))
+					break;
+				++extraSpawned;
+			}
+			Bench::setInfoInt("cap_queue_load_near_cap", player->getLoadPoints());
+			Bench::setInfoInt("cap_queue_can_build_near_cap", player->canBuildMoreOfType(unit) ? 1 : 0);
+			Bench::setInfoInt("cap_build_builders", (Int)builders.size());
+			Bench::setInfoInt("cap_build_started", started);
+			Bench::setInfoInt("cap_queue_can_make", (Int)TheBuildAssistant->canMakeUnit(factory, unit));
+			Bench::setInfoInt("cap_queue_money", (Int)player->getMoney()->countMoney());
+			Bench::setInfoInt("cap_queue_cap", cap);
+			Bench::setInfoInt("cap_queue_spawned", spawned);
+			Bench::setInfoInt("cap_queue_load_before_queue", loadBeforeQueue);
+			Bench::setInfoInt("cap_queue_queued", queued);
+			Bench::setInfoInt("cap_queue_load_after_queue", player->getLoadPoints());
+			s_capTraceActive = TRUE;
+			s_capTraceFactory = factory->getID();
+			return;
+		}
+
 		const Int loadBefore = player->getLoadPoints();
 		const Bool canBefore = player->canBuildMoreOfType(unit);
 		const CanMakeType makeBeforeType = TheBuildAssistant->canMakeUnit(factory, unit);
@@ -373,8 +493,29 @@ namespace
 		Bench::setInfoInt("cap_test_load_at_cap", loadAtCap);
 		Bench::setInfoInt("cap_test_can_build_at_cap", canAtCap ? 1 : 0);
 		Bench::setInfoInt("cap_test_can_make_at_cap", (Int)makeAtCap);
+		// FORK @feature 09/10/2026 Units that appear without production (special powers, scripts) may push the load over
+		// the cap; production must then stay refused. Spawn 4 more past the cap, the way a paradrop would.
+		Int spawnedOver = 0;
+		for (Int extra = 0; extra < 4; ++extra)
+		{
+			Coord3D pos;
+			pos.x = anchor.x + (Real)((spawned + extra) % 20) * 12.0f;
+			pos.y = anchor.y + (Real)((spawned + extra) / 20) * 12.0f;
+			pos.z = 0.0f;
+			if (spawnUnit(player, unit, pos))
+				++spawnedOver;
+		}
+		const Int loadOver = player->getLoadPoints();
+		const Bool canOver = player->canBuildMoreOfType(unit);
+		const CanMakeType makeOver = TheBuildAssistant->canMakeUnit(factory, unit);
+		Bench::setInfoInt("cap_test_spawned_over", spawnedOver);
+		Bench::setInfoInt("cap_test_load_over", loadOver);
+		Bench::setInfoInt("cap_test_can_build_over", canOver ? 1 : 0);
+		Bench::setInfoInt("cap_test_can_make_over", (Int)makeOver);
+
 		const Bool ok = cap > 0 && canBefore && makeBefore && !canAtCap && makeAtCap == CANMAKE_MAXED_OUT_FOR_PLAYER
-			&& loadAtCap <= cap && loadAtCap + unit->getLoadPoints() > cap;
+			&& loadAtCap <= cap && loadAtCap + unit->getLoadPoints() > cap
+			&& spawnedOver == 4 && loadOver > cap && !canOver && makeOver == CANMAKE_MAXED_OUT_FOR_PLAYER;
 		Bench::setInfoInt("cap_test_ok", ok ? 1 : 0);
 	}
 
@@ -714,6 +855,24 @@ void BenchDriver::postLogicUpdate()
 		Bench::setCounter(BENCHC_LIVE_UNITS, totalUnits);
 		Bench::setCounter(BENCHC_OBJECTS, totalObjects);
 		Bench::setCounter(BENCHC_WAITING_UNITS, waiting);
+
+		// FORK @feature 09/10/2026 capQueue trace (load points of slot 0 and objects / queued entries).
+		if (s_capTraceActive && s_players[0])
+		{
+			const Int load = s_players[0]->getLoadPoints();
+			Object *factory = TheGameLogic->findObjectByID(s_capTraceFactory);
+			ProductionUpdateInterface *pui = factory ? factory->getProductionUpdateInterface() : nullptr;
+			AsciiString sample;
+			Int objects = 0;
+			s_players[0]->iterateObjects(countLiveObjects, &objects);
+			sample.format("%s%d/q%d/o%d", s_capTrace.isEmpty() ? "" : " ", load, pui ? (Int)pui->getProductionCount() : -1, objects);
+			s_capTrace.concat(sample);
+			if (load < s_capTraceMin) s_capTraceMin = load;
+			if (load > s_capTraceMax) s_capTraceMax = load;
+			Bench::setInfo("cap_queue_trace", s_capTrace.str());
+			Bench::setInfoInt("cap_queue_trace_min", s_capTraceMin);
+			Bench::setInfoInt("cap_queue_trace_max", s_capTraceMax);
+		}
 	}
 
 	Bench::endFrame(frame);

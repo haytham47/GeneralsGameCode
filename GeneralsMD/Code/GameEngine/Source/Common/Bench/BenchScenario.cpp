@@ -59,7 +59,9 @@ BenchScenario::BenchScenario() :
 	maxLaneStructures(6),
 	startCash(100000),
 	crcEvery(300),
-	loadCap(0)
+	loadCap(0),
+	capQueue(0),
+	capBuildCount(0)
 {
 }
 
@@ -179,6 +181,28 @@ Bool BenchScenario::parse(const char *path, AsciiString &error)
 		else if (key.compareNoCase("factions") == 0) splitList(value, slotFactions);
 		else if (key.compareNoCase("chokeWaypoints") == 0) splitList(value, chokeWaypoints);
 		else if (key.compareNoCase("loadCap") == 0) loadCap = (UnsignedInt)atoi(value.str());
+		else if (key.compareNoCase("capQueue") == 0) capQueue = atoi(value.str());
+		else if (key.compareNoCase("capPoints") == 0) splitList(value, capPoints);
+		else if (key.compareNoCase("capBuild") == 0)
+		{
+			std::vector<AsciiString> parts;
+			AsciiString rest = value;
+			AsciiString token;
+			while (rest.nextToken(&token, ":"))
+			{
+				token.trim();
+				parts.push_back(token);
+			}
+			if (parts.size() != 3)
+			{
+				error.format("line %d: capBuild = <structure>:<builder>:<count>", lineNo);
+				fclose(f);
+				return FALSE;
+			}
+			capBuildStructure = parts[0];
+			capBuildBuilder = parts[1];
+			capBuildCount = atoi(parts[2].str());
+		}
 		else if (key.compareNoCase("capTest") == 0)
 		{
 			const char *colon = strchr(value.str(), ':');
