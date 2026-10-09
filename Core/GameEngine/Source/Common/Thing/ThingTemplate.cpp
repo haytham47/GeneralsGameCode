@@ -1510,6 +1510,10 @@ Int ThingTemplate::getLoadPoints() const
 		return 0;
 	if (isKindOf(KINDOF_AIRCRAFT) && m_buildCost == 0)
 		return 0;
+	// FORK @tweak 09/10/2026 An Angry Mob reserves its full size (up to 10 members) as soon as it is queued; its members
+	// then count 0 while the mob lives (Player::getLoadPoints). Mass-queued mobs could otherwise go far over the cap.
+	if (isKindOf(KINDOF_MOB_NEXUS))
+		return 10;
 	if (isKindOf(KINDOF_STRUCTURE))
 		return 2;
 	if (isKindOf(KINDOF_AIRCRAFT))

@@ -84,6 +84,12 @@ namespace
 	Int s_capTraceMin = 0x7fffffff;
 	Int s_capTraceMax = 0;
 
+	void countLiveObjects(Object *obj, void *userData)
+	{
+		if (!obj->isEffectivelyDead())
+			++*(Int *)userData;
+	}
+
 	const UnsignedInt FREEZE_FRAMES = 90; ///< waiting longer than 3 s for a path counts as a frozen unit
 
 	Bool isArmyUnit(const Object *obj)
@@ -427,6 +433,21 @@ namespace
 				if (pui->queueCreateUnit(unit, pui->requestUniqueUnitID()))
 					++queued;
 			}
+			// FORK @feature 09/10/2026 Reservation check: allowed while load + unit points fit, refused once they do not.
+			Bench::setInfoInt("cap_queue_can_build_after_queue", player->canBuildMoreOfType(unit) ? 1 : 0);
+			Int extraSpawned = 0;
+			while (player->getLoadPoints() + unit->getLoadPoints() <= cap && extraSpawned < 100)
+			{
+				Coord3D pos;
+				pos.x = anchor.x + (Real)((spawned + extraSpawned) % 20) * 12.0f;
+				pos.y = anchor.y + (Real)((spawned + extraSpawned) / 20) * 12.0f + 60.0f;
+				pos.z = 0.0f;
+				if (!spawnUnit(player, unit, pos))
+					break;
+				++extraSpawned;
+			}
+			Bench::setInfoInt("cap_queue_load_near_cap", player->getLoadPoints());
+			Bench::setInfoInt("cap_queue_can_build_near_cap", player->canBuildMoreOfType(unit) ? 1 : 0);
 			Bench::setInfoInt("cap_build_builders", (Int)builders.size());
 			Bench::setInfoInt("cap_build_started", started);
 			Bench::setInfoInt("cap_queue_can_make", (Int)TheBuildAssistant->canMakeUnit(factory, unit));
@@ -842,7 +863,9 @@ void BenchDriver::postLogicUpdate()
 			Object *factory = TheGameLogic->findObjectByID(s_capTraceFactory);
 			ProductionUpdateInterface *pui = factory ? factory->getProductionUpdateInterface() : nullptr;
 			AsciiString sample;
-			sample.format("%s%d/q%d", s_capTrace.isEmpty() ? "" : " ", load, pui ? (Int)pui->getProductionCount() : -1);
+			Int objects = 0;
+			s_players[0]->iterateObjects(countLiveObjects, &objects);
+			sample.format("%s%d/q%d/o%d", s_capTrace.isEmpty() ? "" : " ", load, pui ? (Int)pui->getProductionCount() : -1, objects);
 			s_capTrace.concat(sample);
 			if (load < s_capTraceMin) s_capTraceMin = load;
 			if (load > s_capTraceMax) s_capTraceMax = load;

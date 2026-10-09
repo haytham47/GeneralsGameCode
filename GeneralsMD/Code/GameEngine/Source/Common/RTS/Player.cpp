@@ -2921,7 +2921,18 @@ static void addLoadPoints( Object *obj, void *userData )
     return;
 
   Int *total = (Int *)userData;
-  *total += obj->getTemplate()->getLoadPoints();
+  Int points = obj->getTemplate()->getLoadPoints();
+
+  // FORK @tweak 09/10/2026 Angry Mob members are covered by their living mob's own points (the producer of a spawned
+  // member is its mob; the mob clears it when it dies, so surviving members then count again). Only the mob refills
+  // its spawns, so other spawners (supply center harvester, tunnel defenders) keep counting their spawns normally.
+  if ( points > 0 && obj->getProducerID() != INVALID_ID )
+  {
+    const Object *producer = TheGameLogic->findObjectByID( obj->getProducerID() );
+    if ( producer && producer->isKindOf( KINDOF_MOB_NEXUS ) && !producer->isEffectivelyDead() )
+      points = 0;
+  }
+  *total += points;
 
   ProductionUpdateInterface *pui = ProductionUpdate::getProductionUpdateInterfaceFromObject( obj );
   if ( pui )
