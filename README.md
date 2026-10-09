@@ -52,19 +52,34 @@ pathfinding), so it is not compatible with retail *Zero Hour* 1.04 or with other
 - The game speed recovers faster after a slow PC catches up (frame rates averaged over 8 seconds instead of 30).
 
 **Optional build cap** (off by default)
-- The host can limit how much each player can own, in load points: infantry 1, vehicle 3, aircraft 4, structure 2
-  (an INI `LoadPoints` field on an object overrides this). Things the player cannot control count 0: Supply Drop
-  Zone and paradrop cargo planes, general-power aircraft (A-10, B-52, Spectre, Carpet Bomber, MiG strike), artillery
-  barrage cannons, Stinger Site soldiers and the drones that ride along with vehicles. An Angry Mob counts 10 from
-  the moment it is queued (its full size) and its members count 0 while the mob lives. Units that appear without
-  production (paradrops, ambushes, rebuilds) still count and may push a player over the cap; production then stays
-  blocked until the player is back under it. The host picks it in the LAN lobby with the **Build Cap**
-  box (No limit, 350, 450, 650, 900, 1200); other players see the choice but cannot change it. The choice is kept in
-  the host's `Options.ini` (`LoadCap`), which skirmish uses too.
-- The cap is weighted by faction when the game starts, because GLA needs more units for the same army power. The
-  match total (players x chosen cap) is split by weight USA 0.75, China 0.70, GLA 1.00. Examples at 350: USA vs GLA
-  = 300 / 400; 2 USA + 2 China + 2 GLA = 321 / 300 / 429; players all on one faction keep 350. Build buttons grey
-  out at the cap and the HUD shows `Cap used/cap` (always, even with the latency counter turned off).
+
+Limits how much each player can own, so very large late-game armies cannot slow the whole LAN game down.
+
+- *Setting it:* the host picks the cap in the LAN lobby with the **Build Cap** box: No limit, 350, 450, 650, 900 or
+  1200. Other players see the choice but cannot change it. The choice is kept in the host's `Options.ini`
+  (`LoadCap`), which skirmish uses too.
+- *Faction weighting:* GLA needs more units than USA or China for the same army power, so the cap is weighted when
+  the game starts. The match total (players x chosen cap) is split by weight USA 0.75, China 0.70, GLA 1.00. A
+  lobby where everyone plays the same faction keeps the chosen cap. Examples at 350:
+
+  | Lobby | USA | China | GLA |
+  |---|---|---|---|
+  | USA vs GLA | 300 | | 400 |
+  | China vs GLA | | 288 | 412 |
+  | 2 USA + 2 China + 2 GLA | 321 | 300 | 429 |
+
+- *What counts (load points):* infantry 1, vehicle 3, aircraft 4, structure 2. Units waiting in a production queue
+  count too. An Angry Mob counts 10 from the moment it is queued (its full size) and its members count 0 while the
+  mob lives. An INI `LoadPoints` field on an object overrides all of this.
+- *What does not count:* things the player cannot control: Supply Drop Zone and paradrop cargo planes,
+  general-power aircraft (A-10, B-52, B-3, Spectre, Carpet Bomber, MiG napalm strike), artillery barrage cannons,
+  Stinger Site soldiers and the drones that ride along with vehicles (battle, scout, hellfire, repair, spy).
+  Sentry and Guardian drones are built like other units and do count.
+- *At the cap:* build buttons grey out and production is refused. Units that appear without production still
+  arrive and count, even over the cap: paradrops, ambushes, the free supply-center harvester, tunnel defenders,
+  rebuilt GLA buildings. A player who ends up over the cap (for example `Cap 362/350`) cannot produce until losses
+  bring them back under it.
+- *HUD:* `Cap used/cap` in the top-left corner, shown whenever a cap is on (even with the latency counter turned off).
 
 **Display**
 - Fullscreen uses a borderless window by default, which avoids the D3D8 device-loss loop when switching windows.
