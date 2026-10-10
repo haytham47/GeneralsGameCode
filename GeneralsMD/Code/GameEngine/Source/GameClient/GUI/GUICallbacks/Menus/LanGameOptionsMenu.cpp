@@ -347,7 +347,8 @@ void StartPressed()
 			isReady = false;
 			if (!willTransfer)
 			{
-				if (!slot->hasMap())
+				// FORK @feature 10/10/2026 Official maps are never re-sent, but their map folder files are.
+				if (!slot->hasMapFile())
 				{
 					UnicodeString msg;
 					msg.format(TheGameText->fetch("GUI:PlayerNoMap"), slot->getName().str(), mapDisplayName.str());

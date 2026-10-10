@@ -236,11 +236,23 @@ void LANAPI::OnGameStart()
 		if (TheGameLogic->isInGame())
 			TheGameLogic->clearGameData();
 
+		// FORK @feature 10/10/2026 Map folder files that differ from the host's are replaced before the transfer.
+		PrepareLocalMapFolderForTransfer(m_currentGame);
+
 		Bool filesOk = DoAnyMapTransfers(m_currentGame);
 
 		// see if we really have the map.  if not, back out.
 		TheMapCache->updateCache();
-		if (!filesOk || TheMapCache->findMap(m_currentGame->getMap()) == nullptr)
+		const MapMetaData *startMap = TheMapCache->findMap(m_currentGame->getMap());
+		// FORK @feature 10/10/2026 After the transfer a client must have exactly the host's map and folder files;
+		// starting anyway would desync later.
+		Bool dataDiffers = FALSE;
+		if (filesOk && startMap != nullptr && !m_currentGame->amIHost())
+		{
+			dataDiffers = (startMap->m_CRC != m_currentGame->getMapCRC())
+				|| (m_currentGame->getMapAuxCRC() != 0 && ComputeMapAuxCRC(m_currentGame->getMap()) != m_currentGame->getMapAuxCRC());
+		}
+		if (!filesOk || startMap == nullptr || dataDiffers)
 		{
 			DEBUG_LOG(("After transfer, we didn't really have the map.  Bailing..."));
 			OnPlayerLeave(m_name);
@@ -252,6 +264,10 @@ void LANAPI::OnGameStart()
 			TheNetwork = nullptr;
 
 			OnChat(UnicodeString::TheEmptyString, 0, TheGameText->fetch("GUI:CouldNotTransferMap"), LANCHAT_SYSTEM);
+			if (dataDiffers)
+				OnChat(UnicodeString::TheEmptyString, 0,
+					UnicodeString(L"Your map files still differ from the host's (a file inside a .big archive?). Install the LAN package again."),
+					LANCHAT_SYSTEM);
 			return;
 		}
 

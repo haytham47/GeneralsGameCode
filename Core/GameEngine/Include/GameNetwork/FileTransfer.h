@@ -47,3 +47,4 @@ UnsignedInt ComputeMapAuxCRC( AsciiString mapPath ); ///< FORK fingerprint of ma
 
 // The meat of file (map) transfers
 Bool DoAnyMapTransfers(GameInfo *game);
+void PrepareLocalMapFolderForTransfer( GameInfo *game ); ///< FORK set aside local map folder files the host lacks
