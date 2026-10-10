@@ -369,10 +369,59 @@ GameLogic::~GameLogic()
 // ------------------------------------------------------------------------------------------------
 /** (re)initialize the instance. */
 // ------------------------------------------------------------------------------------------------
+// FORK @feature 10/10/2026 Players and objects of the logic state for a desync report (desync guard).
+// ------------------------------------------------------------------------------------------------
+static UnsignedInt desyncRealBits( Real value )
+{
+	UnsignedInt bits;
+	memcpy( &bits, &value, sizeof(bits) );
+	return bits;
+}
+
+static void writeDesyncStateDump( FILE *fp, const AsciiString &deepDumpPath )
+{
+	fprintf( fp, "[players]\r\n" );
+	for( Int i = 0; i < ThePlayerList->getPlayerCount(); ++i )
+	{
+		Player *player = ThePlayerList->getNthPlayer( i );
+		if( player == nullptr )
+			continue;
+		XferCRC playerCRC;
+		playerCRC.open( "desyncPlayer" );
+		playerCRC.xferSnapshot( player );
+		playerCRC.close();
+		AsciiString name;
+		name.translate( player->getPlayerDisplayName() );
+		fprintf( fp, "P idx=%d name=%s money=%u skill=%d rank=%d sciencepts=%d crc=%08X\r\n", i, name.str(),
+			player->getMoney()->countMoney(), player->getSkillPoints(), player->getRankLevel(),
+			player->getSciencePurchasePoints(), playerCRC.getCRC() );
+	}
+	fprintf( fp, "[objects]\r\n" );
+	for( Object *obj = TheGameLogic->getFirstObject(); obj; obj = obj->getNextObject() )
+	{
+		XferCRC objectCRC;
+		objectCRC.open( "desyncObject" );
+		objectCRC.xferSnapshot( obj );
+		objectCRC.close();
+		const Coord3D *pos = obj->getPosition();
+		BodyModuleInterface *body = obj->getBodyModule();
+		const Player *owner = obj->getControllingPlayer();
+		fprintf( fp, "O id=%u tmpl=%s owner=%d x=%08X y=%08X z=%08X hp=%08X crc=%08X\r\n", (UnsignedInt)obj->getID(),
+			obj->getTemplate()->getName().str(), owner ? owner->getPlayerIndex() : -1, desyncRealBits( pos->x ),
+			desyncRealBits( pos->y ), desyncRealBits( pos->z ), desyncRealBits( body ? body->getHealth() : 0.0f ),
+			objectCRC.getCRC() );
+	}
+	if( deepDumpPath.isNotEmpty() )
+		TheGameLogic->getCRC( CRC_RECALC, deepDumpPath );
+}
+
+// ------------------------------------------------------------------------------------------------
 void GameLogic::init()
 {
 
 	setFPMode();
+
+	DesyncGuard::setStateDumpFunc( writeDesyncStateDump ); // FORK @feature 10/10/2026
 
 	// create the partition manager
 	ThePartitionManager = NEW PartitionManager;
@@ -3916,6 +3965,18 @@ void GameLogic::update()
 	{
 		TheTerrainLogic->UPDATE();
 	}
+
+#if defined(RTS_DEBUG)
+	// FORK @feature 10/10/2026 Test hook (-forceDesyncAtFrame/-forceDesyncSlot): desync this PC on purpose.
+	if ( DesyncGuard::s_forceDesyncFrame > 0 && m_frame == (UnsignedInt)DesyncGuard::s_forceDesyncFrame
+		&& TheGameInfo && TheGameInfo->getLocalSlotNum() == DesyncGuard::s_forceDesyncSlot )
+	{
+		// Skill points are part of Player::crc (money is not), so the next logic CRC differs at once.
+		Player *localPlayer = ThePlayerList->getLocalPlayer();
+		if ( localPlayer )
+			localPlayer->addSkillPoints( 1 );
+	}
+#endif
 
 	// force CRC calculation, so we can keep a cache of the last N CRCs.  We do this right where the recorder
 	// would be getting the CRC anyway, so replays can get the CRCs from the exact instant in time as the original.

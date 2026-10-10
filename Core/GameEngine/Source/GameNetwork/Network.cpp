@@ -36,6 +36,7 @@
 #include "Common/MessageStream.h"
 #include "Common/Player.h"
 #include "Common/PlayerList.h"
+#include "GameNetwork/DesyncGuard.h"
 #include "GameNetwork/NetworkInterface.h"
 #include "GameNetwork/udp.h"
 #include "GameNetwork/Transport.h"
@@ -368,7 +369,9 @@ void Network::setSawCRCMismatch()
 
 	TheScriptActions->closeWindows( TRUE );
 	m_messageWindow = TheWindowManager->winCreateFromScript("Menus/CRCMismatch.wnd");
-	TheScriptEngine->startEndGameTimer();
+	// FORK @feature 10/10/2026 The desync guard writes the reports and ends the game once they are collected.
+	if (!DesyncGuard::onMismatchDetected())
+		TheScriptEngine->startEndGameTimer();
 
 	TheRecorder->logCRCMismatch();
 
@@ -692,6 +695,8 @@ void Network::update()
 // 3. Check to see if all the commands for the next frame are there.
 // 4. If all commands are there, put that frame's commands on TheCommandList.
 //
+	DesyncGuard::update(); // FORK @feature 10/10/2026
+
 	m_frameDataReady = FALSE;
 	m_isStalling = FALSE;
 
