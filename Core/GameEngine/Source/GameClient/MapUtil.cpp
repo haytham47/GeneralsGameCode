@@ -585,7 +585,10 @@ Bool MapCache::addMap(
 		// Found the map in our cache. Check to see if it has changed.
 		const MapMetaData& md = it->second;
 
-		if (md.m_filesize == fileInfo.sizeLow && md.m_CRC != 0)
+		// FORK @bugfix 10/10/2026 A same-size edited map must be re-hashed: the lobby compares this CRC between players.
+		if (md.m_filesize == fileInfo.sizeLow && md.m_CRC != 0
+			&& md.m_timestamp.m_highTimeStamp == fileInfo.timestampHigh
+			&& md.m_timestamp.m_lowTimeStamp == fileInfo.timestampLow)
 		{
 			// Force a lookup so that we don't display the English localization in all builds.
 			if (md.m_nameLookupTag.isEmpty())
