@@ -518,6 +518,7 @@ set(GAMEENGINE_SRC
 #    Include/GameLogic/WeaponStatus.h
     Include/GameNetwork/Connection.h
     Include/GameNetwork/ConnectionManager.h
+    Include/GameNetwork/DesyncClassifier.h
     Include/GameNetwork/DisconnectManager.h
     Include/GameNetwork/DownloadManager.h
     Include/GameNetwork/FileTransfer.h

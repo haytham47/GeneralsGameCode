@@ -4,6 +4,7 @@ set(COREI_GOOGLETEST_SRC
     GameEngine/Common/AsciiStringTest.cpp
     GameEngine/GameNetwork/SlowestPlayerTest.cpp
     GameEngine/GameNetwork/MapFingerprintTest.cpp
+    GameEngine/GameNetwork/DesyncClassifierTest.cpp
     Libraries/Compression/CompressionManagerTest.cpp
 )
 
