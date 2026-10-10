@@ -50,6 +50,22 @@ pathfinding), so it is not compatible with retail *Zero Hour* 1.04 or with other
 - New HUD line next to the network latency counter: the slowest player's frame rate and the current game speed
   (in a lockstep game every PC runs at the speed of the slowest one).
 - The game speed recovers faster after a slow PC catches up (frame rates averaged over 8 seconds instead of 30).
+- *Map files:* the lobby also compares the map folder files that change the game (`map.ini`, `map.str`, `solo.ini`)
+  with the host's. A player whose files differ gets the host's files at game start (a loose file the host does not
+  have is renamed to `*.desyncguard-bak`). If they still differ after that, that player does not start and their
+  chat says so. On an official map, which cannot be transferred, the start stays blocked until the files match.
+  An edited custom map of the same size is now detected too.
+
+**Mismatch reports** (when a LAN game still goes out of sync)
+- Every player's game sends extra checksums with its usual sync check, one per part of the game state (objects,
+  random numbers, map partition, players, AI) plus a fingerprint of its game data (exe, INI, map, map files, lobby
+  options). They are only used for the report and never change the game.
+- On a mismatch the game names the player who went out of sync and in which part, or says that player has different
+  game data. Every PC writes a report, the other players send theirs to the host, and the game ends once the host has
+  them all (at most 30 seconds).
+- The host finds everything in `Documents\Command and Conquer Generals Zero Hour Data\Desync\<date_time>\`: every
+  player's report (`<slot>_<name>.txt` own, `from<slot>_...txt` received), a full state dump (`_deep.bin`) and the
+  replay. Other players keep a copy in `..._sent`. The newest 20 folders are kept.
 
 **Optional build cap** (off by default)
 
@@ -104,10 +120,17 @@ Limits how much each player can own, so very large late-game armies cannot slow 
 **Display**
 - Fullscreen uses a borderless window by default, which avoids the D3D8 device-loss loop when switching windows.
   Start with `-exclusivefullscreen` to get the original exclusive fullscreen mode.
+- The player can zoom the camera out to twice the map's maximum height. Scripted cameras and the default zoom are
+  unchanged.
+- The intro screen shows a credit line for this edition.
 
 **Bug fixes**
 - Crash when a unit fires before it was ever drawn (weapon recoil list out of bounds).
 - Memory corruption when a network game resets (per-player frame rate and latency arrays written past their end).
+- A large network command (for example a file) could get stuck behind small commands until the connection closed;
+  it now goes out right away.
+- With a slower general's points rate, the leftover fraction of a point is now part of the sync check and of save
+  games.
 
 **Benchmark mode** (for development)
 - `generalszh.exe -bench <scenario.ini> -benchOut <dir> -setCwd "<game folder>" [-headless]` starts a scripted
@@ -116,8 +139,9 @@ Limits how much each player can own, so very large late-game armies cannot slow 
 
 ### Compatibility notes
 - Replays recorded with retail *Zero Hour* or with older builds of this fork do not play back correctly (paths differ).
-- Save games keep the same format. The build cap, disabled superweapons and the general's points rate are not stored
-  in save games, so a loaded skirmish plays without them.
+- Save games from older builds still load. Saves made with this build use a newer player format (version 9) and do
+  not load in retail *Zero Hour* or older builds of this fork. The build cap, disabled superweapons and the general's
+  points rate are not stored in save games, so a loaded skirmish plays without them.
 - Every PC also needs the Microsoft Visual C++ 2015-2022 x86 runtime.
 
 ### Installing this fork for a LAN game
