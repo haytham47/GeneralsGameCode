@@ -30,9 +30,12 @@
 
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
+#include "Common/file.h"
+#include "Common/FileSystem.h"
 #include "GameClient/LoadScreen.h"
 #include "GameClient/Shell.h"
 #include "GameNetwork/FileTransfer.h"
+#include "GameNetwork/MapFingerprint.h"
 #include "GameNetwork/networkutil.h"
 
 //-------------------------------------------------------------------------------------
@@ -236,6 +239,30 @@ AsciiString GetReadmeFromMap( AsciiString path )
 	AsciiString out;
 	out.format("%s\\readme.txt", base.str());
 	return out;
+}
+
+// FORK @feature 10/10/2026 Fingerprint of the map folder files that feed the game logic (map.ini, map.str,
+// solo.ini). Players whose fingerprint differs from the host's get the host's files before the game starts.
+UnsignedInt ComputeMapAuxCRC( AsciiString mapPath )
+{
+	CRC crc;
+	crc.clear();
+	const AsciiString paths[3] = { GetINIFromMap(mapPath), GetStrFileFromMap(mapPath), GetSoloINIFromMap(mapPath) };
+	const char *const tags[3] = { "map.ini", "map.str", "solo.ini" };
+	for (Int i = 0; i < 3; ++i)
+	{
+		File *fp = TheFileSystem->openFile(paths[i].str(), File::READ | File::BINARY);
+		if (fp == nullptr)
+		{
+			MapFingerprintAddFile(crc, tags[i], nullptr, 0, FALSE);
+			continue;
+		}
+		const Int len = fp->size();
+		char *buf = fp->readEntireAndClose();
+		MapFingerprintAddFile(crc, tags[i], buf, len, TRUE);
+		delete[] buf;
+	}
+	return crc.get();
 }
 
 //-------------------------------------------------------------------------------------

@@ -620,6 +620,7 @@ void LANAPI::handleHasMap( LANMessage *msg, UnsignedInt senderIP )
 		{
 			if (m_currentGame->getIP(player) == senderIP)
 			{
+				m_currentGame->getLANSlot(player)->setHasMapFile(msg->MapStatus.hasMapFile); // FORK @feature 10/10/2026
 				OnHasMap(senderIP, msg->MapStatus.hasMap);
 				break;
 			}
