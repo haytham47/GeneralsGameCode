@@ -83,6 +83,7 @@
 #include "GameClient/Module/BeaconClientUpdate.h"
 #include "GameClient/LookAtXlat.h"
 
+#include "GameNetwork/DesyncGuard.h"
 #include "GameNetwork/NetworkInterface.h"
 
 
@@ -2411,6 +2412,8 @@ bool GameLogic::onLogicCrc(MAYBE_UNUSED GameMessage *msg)
 		//DEBUG_LOG(("Received CRC of %8.8X from %ls on frame %d", newCRC,
 			//msgPlayer->getPlayerDisplayName().str(), m_frame));
 		m_cachedCRCs[msgPlayer->getPlayerIndex()] = newCRC;
+		// FORK @feature 10/10/2026 Section CRCs and fingerprint for the desync report (never compared by the game).
+		DesyncGuard::recordCRCMessage(slotIndex, msg);
 	}
 	else if (TheRecorder && TheRecorder->isPlaybackMode())
 	{

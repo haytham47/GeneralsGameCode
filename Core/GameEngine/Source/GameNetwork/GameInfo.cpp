@@ -29,6 +29,7 @@
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
 #include "Common/CRCDebug.h"
+#include "Common/crc.h"
 #include "Common/file.h"
 #include "Common/FileSystem.h"
 #include "Common/GameState.h"
@@ -1828,3 +1829,39 @@ void SkirmishGameInfo::loadPostProcess()
 {
 }
 
+
+// ------------------------------------------------------------------------------------------------
+// FORK @feature 10/10/2026 CRC of the parsed lobby options that feed the game logic, part of the data fingerprint
+// every player sends with its logic CRC. Network details (IPs, ports, accept flags) are left out.
+// ------------------------------------------------------------------------------------------------
+UnsignedInt ComputeGameOptionsCRC( const GameInfo *game )
+{
+	CRC crc;
+	crc.clear();
+	if (game == nullptr)
+		return 0;
+	Int values[10];
+	values[0] = game->getSeed();
+	values[1] = game->getCRCInterval();
+	values[2] = (Int)game->getSuperweaponRestriction();
+	values[3] = (Int)game->getStartingCash().countMoney();
+	values[4] = (Int)game->getLoadCap();
+	values[5] = game->getSuperweaponsDisabled() ? 1 : 0;
+	values[6] = (Int)game->getGeneralPointsRate();
+	values[7] = game->oldFactionsOnly() ? 1 : 0;
+	values[8] = (Int)game->getMapCRC();
+	values[9] = (Int)game->getMapAuxCRC();
+	crc.computeCRC(values, sizeof(values));
+	for (Int i = 0; i < MAX_SLOTS; ++i)
+	{
+		const GameSlot *slot = game->getConstSlot(i);
+		Int slotValues[5];
+		slotValues[0] = slot ? (Int)slot->getState() : -1;
+		slotValues[1] = slot ? slot->getPlayerTemplate() : -1;
+		slotValues[2] = slot ? slot->getColor() : -1;
+		slotValues[3] = slot ? slot->getStartPos() : -1;
+		slotValues[4] = slot ? slot->getTeamNumber() : -1;
+		crc.computeCRC(slotValues, sizeof(slotValues));
+	}
+	return crc.get();
+}

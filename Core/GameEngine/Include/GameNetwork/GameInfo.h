@@ -292,6 +292,7 @@ void        GameInfo::setOldFactionsOnly( Bool oldFactionsOnly ) { m_oldFactions
 
 AsciiString GameInfoToAsciiString( const GameInfo *game );
 Bool ParseAsciiStringToGameInfo( GameInfo *game, AsciiString options );
+UnsignedInt ComputeGameOptionsCRC( const GameInfo *game ); ///< FORK logic-relevant lobby options and slots
 
 
 /**

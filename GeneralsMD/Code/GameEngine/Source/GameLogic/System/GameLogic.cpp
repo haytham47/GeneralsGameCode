@@ -109,6 +109,7 @@
 #include "GameNetwork/GameSpy/BuddyThread.h"
 #include "GameNetwork/GameSpy/PeerDefs.h"
 #include "GameNetwork/GameSpy/ThreadUtils.h"
+#include "GameNetwork/DesyncGuard.h"
 #include "GameNetwork/LANAPICallbacks.h"
 #include "GameNetwork/NetworkInterface.h"
 #include "GameNetwork/GameSpy/PersistentStorageThread.h"
@@ -1705,6 +1706,11 @@ void GameLogic::tryStartNewGame( Bool loadingSaveGame )
 	// FORK @feature 09/10/2026 Players and their (random-resolved) factions exist now: weight the build cap per faction.
 	computePlayerLoadCaps();
 
+	// FORK @feature 10/10/2026 Fingerprint of the data this PC loaded, sent with every logic CRC.
+	DesyncGuard::reset();
+	if ( !loadingSaveGame && TheGameInfo )
+		DesyncGuard::setLocalFingerprint( ComputeLocalDataFingerprint( TheGameInfo ) );
+
 	// update the loadscreen
 	updateLoadProgress(LOAD_PROGRESS_POST_PLAYER_LIST_RESET);
 
@@ -2791,6 +2797,8 @@ void GameLogic::processCommandList( CommandList *list )
 		// FORK @feature 08/10/2026 Logs processed commands in -bench mode to locate run divergence.
 		if (Bench::s_active)
 			Bench::logMessage(m_frame, (Int)msg->getType(), msg->getPlayerIndex());
+		// FORK @feature 10/10/2026 The last commands go into a desync report.
+		DesyncGuard::noteCommand(m_frame, (Int)msg->getType(), msg->getPlayerIndex());
 		logicMessageDispatcher( msg, nullptr );
 	}
 
@@ -3929,6 +3937,12 @@ void GameLogic::update()
 		GameMessage *msg = newInstance(GameMessage)(GameMessage::MSG_LOGIC_CRC);
 		msg->appendIntegerArgument(m_CRC);
 		msg->appendBooleanArgument(isPlayback);
+		// FORK @feature 10/10/2026 Section CRCs and the data fingerprint ride along for the desync report.
+		UnsignedInt sectionCRCs[DESYNC_SECTION_COUNT];
+		computeSectionCRCs( sectionCRCs );
+		for( Int section = 0; section < DESYNC_SECTION_COUNT; ++section )
+			msg->appendIntegerArgument( sectionCRCs[section] );
+		msg->appendIntegerArgument( DesyncGuard::getLocalFingerprint() );
 
 		// TheSuperHackers @info helmutbuhler 13/04/2025
 		// During replay simulation, we bypass TheMessageStream and instead put the CRC message
@@ -4424,6 +4438,33 @@ UnsignedInt GameLogic::getCRC( Int mode, AsciiString deepCRCFileName )
 		CRCGEN_LOG(("CRC for frame %d is 0x%8.8X", m_frame, theCRC));
 	}
 	return theCRC;
+}
+
+// ------------------------------------------------------------------------------------------------
+// FORK @feature 10/10/2026 CRC of each part of the logic state that getCRC() hashes, so a mismatch report can say
+// which part diverged. Separate passes; never feeds m_CRC.
+// ------------------------------------------------------------------------------------------------
+static UnsignedInt snapshotSectionCRC( Snapshot *snapshot )
+{
+	XferCRC xferCRC;
+	xferCRC.open("sectionCRC");
+	xferCRC.xferSnapshot(snapshot);
+	xferCRC.close();
+	return xferCRC.getCRC();
+}
+
+void GameLogic::computeSectionCRCs( UnsignedInt *out )
+{
+	XferCRC objectsCRC;
+	objectsCRC.open("sectionCRC");
+	for( Object *obj = m_objList; obj; obj = obj->getNextObject() )
+		objectsCRC.xferSnapshot( obj );
+	objectsCRC.close();
+	out[DESYNC_SECTION_OBJECTS] = objectsCRC.getCRC();
+	out[DESYNC_SECTION_RANDOM] = GetGameLogicRandomSeedCRC();
+	out[DESYNC_SECTION_PARTITION] = snapshotSectionCRC( ThePartitionManager );
+	out[DESYNC_SECTION_PLAYERS] = snapshotSectionCRC( ThePlayerList );
+	out[DESYNC_SECTION_AI] = snapshotSectionCRC( TheAI );
 }
 
 // ------------------------------------------------------------------------------------------------
