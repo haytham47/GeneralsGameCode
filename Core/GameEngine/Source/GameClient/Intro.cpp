@@ -210,8 +210,36 @@ void Intro::doTheSuperHackers()
 		setting.centerOffsetY = centerOffsetY;
 		setting.sizeX = (Int)(122 * 0.50f);
 		setting.sizeY = (Int)(98 * 0.50f);
+		centerOffsetY += setting.sizeY * resolutionScale; // FORK @feature 09/10/2026 room for the line below the image
 		settings.push_back(setting);
 	}
+#if RTS_ZEROHOUR
+	{
+		// FORK @feature 09/10/2026 Credit line of this fork's builder, below the image.
+		DisplaySetting setting;
+		setting.font = "Consolas";
+		setting.text = L"Special LAN Edition built by haytham47";
+		setting.sizeY = 16;
+		centerOffsetY += setting.sizeY * resolutionScale;
+		setting.centerOffsetY = centerOffsetY;
+		centerOffsetY += setting.sizeY * resolutionScale * 2;
+		setting.bold = true;
+		setting.centered = true;
+		settings.push_back(setting);
+	}
+	{
+		// FORK @feature 09/10/2026 What this edition adds.
+		DisplaySetting setting;
+		setting.font = "Consolas";
+		setting.text = L"Smoother late-game performance  |  Build cap  |  Superweapon and rank speed options";
+		setting.sizeY = 12;
+		setting.centerOffsetY = centerOffsetY;
+		centerOffsetY += setting.sizeY * resolutionScale * 2;
+		setting.bold = false;
+		setting.centered = true;
+		settings.push_back(setting);
+	}
+#endif
 
 	m_displayEntities.resize(settings.size());
 
