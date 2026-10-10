@@ -3723,7 +3723,11 @@ bool W3DView::getDesiredTerrainDrawSize(ICoord2D &dimensions) const
 
 	const Real cameraPitch = asin(fabs(m_3DCamera->Get_Forward_Dir().Z));
 
-	if (cameraPitch > ViewDefaultLowPitchRadians || !m_isUserControlled)
+	// FORK @feature 10/10/2026 Uses the larger draw size when the player zooms out past the original max height.
+	// Uses the desired height, which only changes when the player zooms, so the draw size does not flip while scrolling.
+	const Bool isZoomedOutPastMax = m_heightAboveGround > m_maxHeightAboveGround + 1.0f;
+
+	if ((cameraPitch > ViewDefaultLowPitchRadians && !isZoomedOutPastMax) || !m_isUserControlled)
 	{
 		// TheSuperHackers @info The scripted camera always uses the regular draw sizes
 		// and uses terrain oversize if it needs to enlarge.

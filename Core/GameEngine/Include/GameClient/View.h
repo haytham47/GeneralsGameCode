@@ -234,6 +234,9 @@ public:
 	virtual void setUserControlled(Bool value) { m_isUserControlled = value; }
 	Bool isUserControlLocked() const;
 
+	// FORK @feature 10/10/2026 Lets the player zoom out to twice the map's max camera height. Scripted cameras and the default zoom keep the original max.
+	Real getUserMaxHeightAboveGround() const { return m_maxHeightAboveGround * 2.0f; }
+
 	// for debugging
 	virtual Real getTerrainHeightAtPivot() { return m_terrainHeightAtPivot; }
 	virtual Real getCurrentHeightAboveGround() { return m_currentHeightAboveGround; }

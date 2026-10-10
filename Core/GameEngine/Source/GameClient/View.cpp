@@ -202,7 +202,8 @@ void View::setHeightAboveGround(Real z)
 	// if our zoom is limited, we will stay within a predefined distance from the terrain
 	if( m_zoomLimited )
 	{
-		m_heightAboveGround = clamp(m_minHeightAboveGround, z, m_maxHeightAboveGround);
+		// FORK @feature 10/10/2026 Clamps the player's zoom to the extended user max height.
+		m_heightAboveGround = clamp(m_minHeightAboveGround, z, getUserMaxHeightAboveGround());
 	}
 	else
 	{
