@@ -288,7 +288,11 @@ void PrepareLocalMapFolderForTransfer( GameInfo *game )
 		AsciiString backup = paths[i];
 		backup.concat(".desyncguard-bak");
 		if (MoveFileEx(paths[i].str(), backup.str(), MOVEFILE_REPLACE_EXISTING))
+		{
 			DEBUG_LOG(("PrepareLocalMapFolderForTransfer - set aside %s", paths[i].str()));
+			// The file system caches "exists"; loading the map would still try to open the old name.
+			TheFileSystem->clearFileExistenceCache();
+		}
 		else
 			DEBUG_LOG(("PrepareLocalMapFolderForTransfer - could not set aside %s", paths[i].str()));
 	}

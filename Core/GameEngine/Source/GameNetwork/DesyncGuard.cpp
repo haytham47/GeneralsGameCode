@@ -33,7 +33,6 @@
 #include "GameNetwork/FileTransfer.h"
 #include "GameNetwork/GameInfo.h"
 #include "GameNetwork/NetworkInterface.h"
-#include "Compression.h"
 
 #include <algorithm>
 #include <vector>
@@ -201,18 +200,11 @@ static void uploadLocalReport()
 	const Int got = (Int)fread( raw, 1, len, fp );
 	fclose( fp );
 
-	const CompressionType type = CompressionManager::getPreferredCompression();
-	const Int maxPacked = CompressionManager::getMaxCompressedSize( got, type );
-	char *packed = NEW char[maxPacked];
-	const Int packedLen = CompressionManager::compressData( type, raw, got, packed, maxPacked );
-
+	// Sent uncompressed: the host never unpacks network data (some decoders ignore the output size).
 	AsciiString leaf = localLeafName();
 	leaf.concat( ".txt" );
-	if ( packedLen > 0 )
-		s_uploadCommandID = TheNetwork->sendDesyncReport( leaf, (const UnsignedByte *)packed, packedLen, 1 << 0 );
-	else
+	if ( got > 0 )
 		s_uploadCommandID = TheNetwork->sendDesyncReport( leaf, (const UnsignedByte *)raw, got, 1 << 0 );
-	delete[] packed;
 	delete[] raw;
 }
 

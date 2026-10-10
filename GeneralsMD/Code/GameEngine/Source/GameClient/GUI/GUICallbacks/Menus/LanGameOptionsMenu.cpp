@@ -347,8 +347,9 @@ void StartPressed()
 			isReady = false;
 			if (!willTransfer)
 			{
-				// FORK @feature 10/10/2026 Official maps are never re-sent, but their map folder files are.
-				if (!slot->hasMapFile())
+				// FORK @feature 10/10/2026 Official maps are never transferred (their files live in .big archives), so a
+				// player whose map folder files differ from the host's (hasMap() is FALSE) keeps the start blocked.
+				if (!slot->hasMap())
 				{
 					UnicodeString msg;
 					msg.format(TheGameText->fetch("GUI:PlayerNoMap"), slot->getName().str(), mapDisplayName.str());

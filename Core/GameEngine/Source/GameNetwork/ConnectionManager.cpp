@@ -2412,6 +2412,9 @@ UnsignedShort ConnectionManager::sendDesyncReport(const AsciiString &leafName, c
 	fileMsg->setPlayerID(m_localSlot);
 	const UnsignedShort commandID = GenerateNextCommandID();
 	fileMsg->setID(commandID);
+	// Command IDs are per process: forget any progress the host reported earlier under the same ID.
+	for (Int i = 0; i < MAX_SLOTS; ++i)
+		s_fileProgressMap[i].erase(commandID);
 	AsciiString portable;
 	portable.format("%s%s", DESYNC_REPORT_PREFIX, leafName.str());
 	fileMsg->setPortableFilename(portable);
@@ -2436,25 +2439,12 @@ void ConnectionManager::processDesyncReport(NetFileCommandMsg *msg)
 	const UnsignedInt fromSlot = msg->getPlayerID();
 	const AsciiString portable = msg->getPortableFilename();
 	const AsciiString leaf = portable.str() + strlen(DESYNC_REPORT_PREFIX);
-	UnsignedByte *buf = msg->getFileData();
-	Int len = (Int)msg->getFileLength();
-	UnsignedByte *unpacked = nullptr;
-	if (buf != nullptr && CompressionManager::isDataCompressed(buf, len))
-	{
-		const Int unpackedLen = CompressionManager::getUncompressedSize(buf, len);
-		if (!IsDesyncReportSizeOk(unpackedLen))
-			return;
-		unpacked = NEW UnsignedByte[unpackedLen];
-		if (CompressionManager::decompressData(buf, len, unpacked, unpackedLen) != unpackedLen)
-		{
-			delete[] unpacked;
-			return;
-		}
-		buf = unpacked;
-		len = unpackedLen;
-	}
+	const UnsignedByte *buf = msg->getFileData();
+	const Int len = (Int)msg->getFileLength();
+	// Reports travel uncompressed: some decoders ignore the output size, so compressed network data is never unpacked.
+	if (buf == nullptr || CompressionManager::isDataCompressed(buf, len))
+		return;
 	const Bool stored = (fromSlot < MAX_SLOTS) && DesyncGuard::onReportReceived((Int)fromSlot, leaf, buf, len);
-	delete[] unpacked;
 	if (!stored)
 		return;
 
@@ -2468,7 +2458,7 @@ void ConnectionManager::processDesyncReport(NetFileCommandMsg *msg)
 		progressMsg->setID(GenerateNextCommandID());
 	progressMsg->setFileID(commandID);
 	progressMsg->setProgress(100);
-	sendLocalCommand(progressMsg, 0xff ^ (1 << m_localSlot));
+	sendLocalCommand(progressMsg, 1 << fromSlot); // only the sender: other clients may use the same command ID
 	progressMsg->detach();
 }
 
