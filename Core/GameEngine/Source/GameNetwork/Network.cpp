@@ -127,6 +127,10 @@ public:
 	virtual void sendFile(AsciiString path, UnsignedByte playerMask, UnsignedShort commandID) override;
 	virtual UnsignedShort sendFileAnnounce(AsciiString path, UnsignedByte playerMask) override;
 	virtual Int getFileTransferProgress(Int playerID, AsciiString path) override;
+	virtual UnsignedShort sendDesyncReport(const AsciiString &leafName, const UnsignedByte *data, Int len, UnsignedByte playerMask) override
+	{ return m_conMgr ? m_conMgr->sendDesyncReport(leafName, data, len, playerMask) : 0; } // FORK @feature 10/10/2026
+	virtual Bool isFileTransferAcked(Int slot, UnsignedShort commandID) override
+	{ return m_conMgr ? m_conMgr->isFileTransferAcked(slot, commandID) : FALSE; } // FORK @feature 10/10/2026
 	virtual Bool areAllQueuesEmpty() override;
 
 	virtual void quitGame() override;

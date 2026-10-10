@@ -33,6 +33,10 @@
 #include "GameNetwork/FileTransfer.h"
 #include "GameNetwork/GameInfo.h"
 #include "GameNetwork/NetworkInterface.h"
+#include "Compression.h"
+
+#include <algorithm>
+#include <vector>
 
 Int DesyncGuard::s_forceDesyncFrame = 0;
 Int DesyncGuard::s_forceDesyncSlot = -1;
@@ -58,6 +62,11 @@ static AsciiString s_folder;
 static AsciiString s_localReportPath;
 static UnsignedInt s_startMs = 0;
 
+enum { DESYNC_COLLECT_TIMEOUT_MS = 30000, DESYNC_KEEP_FOLDERS = 20 };
+static Bool s_received[MAX_SLOTS];
+static UnsignedShort s_uploadCommandID = 0;
+static Bool s_endTimerStarted = FALSE;
+
 void DesyncGuard::reset()
 {
 	memset(s_slots, 0, sizeof(s_slots));
@@ -69,6 +78,9 @@ void DesyncGuard::reset()
 	s_folder.clear();
 	s_localReportPath.clear();
 	s_startMs = 0;
+	memset(s_received, 0, sizeof(s_received));
+	s_uploadCommandID = 0;
+	s_endTimerStarted = FALSE;
 }
 
 void DesyncGuard::setLocalFingerprint( UnsignedInt fingerprint ) { s_fingerprint = fingerprint; }
@@ -174,6 +186,36 @@ static AsciiString sectionList( UnsignedInt bits )
 	return list.isEmpty() ? AsciiString( "none" ) : list;
 }
 
+static void uploadLocalReport()
+{
+	FILE *fp = fopen( s_localReportPath.str(), "rb" );
+	if ( fp == nullptr )
+		return;
+	fseek( fp, 0, SEEK_END );
+	Int len = (Int)ftell( fp );
+	fseek( fp, 0, SEEK_SET );
+	if ( len > DESYNC_REPORT_MAX_BYTES )
+		len = DESYNC_REPORT_MAX_BYTES; // the head of the report (header, CRCs, verdict, players) matters most
+	if ( len <= 0 ) { fclose( fp ); return; }
+	char *raw = NEW char[len];
+	const Int got = (Int)fread( raw, 1, len, fp );
+	fclose( fp );
+
+	const CompressionType type = CompressionManager::getPreferredCompression();
+	const Int maxPacked = CompressionManager::getMaxCompressedSize( got, type );
+	char *packed = NEW char[maxPacked];
+	const Int packedLen = CompressionManager::compressData( type, raw, got, packed, maxPacked );
+
+	AsciiString leaf = localLeafName();
+	leaf.concat( ".txt" );
+	if ( packedLen > 0 )
+		s_uploadCommandID = TheNetwork->sendDesyncReport( leaf, (const UnsignedByte *)packed, packedLen, 1 << 0 );
+	else
+		s_uploadCommandID = TheNetwork->sendDesyncReport( leaf, (const UnsignedByte *)raw, got, 1 << 0 );
+	delete[] packed;
+	delete[] raw;
+}
+
 Bool DesyncGuard::onMismatchDetected()
 {
 	if ( s_collecting || TheGameInfo == nullptr || TheNetwork == nullptr )
@@ -255,21 +297,136 @@ Bool DesyncGuard::onMismatchDetected()
 		}
 		TheInGameUI->messageNoFormat( UnicodeString( L"Saving mismatch diagnostics..." ) );
 	}
+	if ( !TheGameInfo->amIHost() )
+		uploadLocalReport();
+	return TRUE;
+}
+
+Bool DesyncGuard::onReportReceived( Int fromSlot, const AsciiString &leafName, const UnsignedByte *data, Int len )
+{
+	// Only the host of a running LAN game accepts reports, and only from a connected player. A report can arrive a
+	// moment before the host's own detection of the same mismatch, so a seen mismatch is not required here.
+	if ( TheGameInfo == nullptr || !TheGameInfo->amIHost() || TheNetwork == nullptr || !TheGameLogic->isInGame() )
+		return FALSE;
+	if ( fromSlot <= 0 || fromSlot >= MAX_SLOTS || !TheNetwork->isPlayerConnected( fromSlot ) || data == nullptr || !IsDesyncReportSizeOk( len ) )
+		return FALSE;
+	char safe[64];
+	SanitizeDesyncFileName( leafName.str(), safe, sizeof(safe) );
+	AsciiString path;
+	path.format( "%sfrom%d_%s", ensureFolder().str(), fromSlot, safe );
+	FILE *fp = fopen( path.str(), "wb" );
+	if ( fp == nullptr )
+		return FALSE;
+	fwrite( data, 1, len, fp );
+	fclose( fp );
+	s_received[fromSlot] = TRUE;
+	if ( TheInGameUI )
+	{
+		UnicodeString text;
+		text.format( L"Received mismatch diagnostics from %ls.", TheGameInfo->getConstSlot( fromSlot )->getName().str() );
+		TheInGameUI->messageNoFormat( text );
+	}
 	return TRUE;
 }
 
 void DesyncGuard::update()
 {
-	// Task 10 replaces this with waiting for the reports.
-	static Bool s_ended = FALSE;
-	if ( !s_collecting ) { s_ended = FALSE; return; }
-	if ( s_ended ) return;
-	s_ended = TRUE;
+	if ( !s_collecting || s_endTimerStarted || TheGameInfo == nullptr || TheNetwork == nullptr )
+		return;
+	Bool done = TRUE;
+	if ( TheGameInfo->amIHost() )
+	{
+		for ( Int i = 1; i < MAX_SLOTS; ++i )
+		{
+			const GameSlot *slot = TheGameInfo->getConstSlot( i );
+			if ( slot && slot->isHuman() && TheNetwork->isPlayerConnected( i ) && !s_received[i] )
+				done = FALSE;
+		}
+	}
+	else
+	{
+		done = ( s_uploadCommandID == 0 ) || TheNetwork->isFileTransferAcked( 0, s_uploadCommandID );
+	}
+	const Bool timedOut = ( timeGetTime() - s_startMs ) > (UnsignedInt)DESYNC_COLLECT_TIMEOUT_MS;
+	if ( !done && !timedOut )
+		return;
+	s_endTimerStarted = TRUE;
+	if ( TheInGameUI )
+	{
+		UnicodeString text;
+		if ( TheGameInfo->amIHost() )
+			text.format( L"Mismatch diagnostics saved in Documents\\...\\Desync%ls.", done ? L"" : L" (some players did not answer)" );
+		else
+			text = done ? UnicodeString( L"Mismatch diagnostics sent to the host." ) : UnicodeString( L"Could not send mismatch diagnostics to the host." );
+		TheInGameUI->messageNoFormat( text );
+	}
 	TheScriptEngine->startEndGameTimer();
 }
 
-Bool DesyncGuard::onReportReceived( Int, const AsciiString &, const UnsignedByte *, Int ) { return FALSE; }
-void DesyncGuard::onReplayClosed( const AsciiString & ) {}
+static void deleteFolder( const AsciiString &folder )
+{
+	AsciiString pattern;
+	pattern.format( "%s*", folder.str() );
+	WIN32_FIND_DATA data;
+	HANDLE find = FindFirstFile( pattern.str(), &data );
+	if ( find != INVALID_HANDLE_VALUE )
+	{
+		do
+		{
+			if ( ( data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY ) == 0 )
+			{
+				AsciiString file;
+				file.format( "%s%s", folder.str(), data.cFileName );
+				DeleteFile( file.str() );
+			}
+		} while ( FindNextFile( find, &data ) );
+		FindClose( find );
+	}
+	AsciiString noSlash = folder;
+	noSlash.removeLastChar();
+	RemoveDirectory( noSlash.str() );
+}
+
+static bool lessAscii( const AsciiString &a, const AsciiString &b )
+{
+	return strcmp( a.str(), b.str() ) < 0;
+}
+
+/// Folder names start with YYYYMMDD_HHMMSS, so name order is age order.
+static void pruneOldFolders()
+{
+	const AsciiString root = desyncRootDir();
+	AsciiString pattern;
+	pattern.format( "%s*", root.str() );
+	std::vector<AsciiString> folders;
+	WIN32_FIND_DATA data;
+	HANDLE find = FindFirstFile( pattern.str(), &data );
+	if ( find == INVALID_HANDLE_VALUE )
+		return;
+	do
+	{
+		if ( ( data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY ) && data.cFileName[0] != '.' )
+			folders.push_back( AsciiString( data.cFileName ) );
+	} while ( FindNextFile( find, &data ) );
+	FindClose( find );
+	std::sort( folders.begin(), folders.end(), lessAscii );
+	for ( Int i = 0; i + DESYNC_KEEP_FOLDERS < (Int)folders.size(); ++i )
+	{
+		AsciiString path;
+		path.format( "%s%s\\", root.str(), folders[i].str() );
+		deleteFolder( path );
+	}
+}
+
+void DesyncGuard::onReplayClosed( const AsciiString &replayPath )
+{
+	if ( s_folder.isEmpty() )
+		return;
+	AsciiString dest;
+	dest.format( "%sreplay.rep", s_folder.str() );
+	CopyFile( replayPath.str(), dest.str(), FALSE );
+	pruneOldFolders();
+}
 
 UnsignedInt ComputeLocalDataFingerprint( const GameInfo *game )
 {

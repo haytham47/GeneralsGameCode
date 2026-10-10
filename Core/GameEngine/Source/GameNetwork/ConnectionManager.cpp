@@ -43,6 +43,7 @@
 #include "GameClient/GameText.h"
 #include "GameClient/MessageBox.h"
 #include "GameNetwork/ConnectionManager.h"
+#include "GameNetwork/DesyncGuard.h"
 #include "GameNetwork/LANAPICallbacks.h"
 #include "GameNetwork/NAT.h"
 #include "GameNetwork/NetCommandWrapperList.h"
@@ -792,6 +793,13 @@ void ConnectionManager::processFile(NetFileCommandMsg *msg)
 	log.format(L"Saw file transfer: '%hs' of %d bytes from %d", msg->getPortableFilename().str(), msg->getFileLength(), msg->getPlayerID());
 	DEBUG_LOG(("%ls", log.str()));
 #endif
+
+	// FORK @feature 10/10/2026 Desync reports never touch the map folders.
+	if (msg->getPortableFilename().startsWithNoCase(DESYNC_REPORT_PREFIX))
+	{
+		processDesyncReport(msg);
+		return;
+	}
 
 	AsciiString realFileName = msg->getRealFilename();
 	if (realFileName.isEmpty())
@@ -2388,6 +2396,80 @@ Int ConnectionManager::getFileTransferProgress(Int playerID, AsciiString path)
 	//DEBUG_LOG(("Falling back to 0, since we couldn't find the map"));
 	DEBUG_LOG_LEVEL(DEBUG_LEVEL_NET, ("ConnectionManager::getFileTransferProgress: path %s not found",path.str()));
 	return 0;
+}
+
+// FORK @feature 10/10/2026 Sends a desync report to the host as a file command with a reserved name. The receiver
+// stores it in its desync folder, never in a map folder.
+UnsignedShort ConnectionManager::sendDesyncReport(const AsciiString &leafName, const UnsignedByte *data, Int len, UnsignedByte playerMask)
+{
+	if (data == nullptr || !IsDesyncReportSizeOk(len))
+		return 0;
+	UnsignedByte *copy = NEW UnsignedByte[len];
+	memcpy(copy, data, len);
+	NetCommandDataChunk chunk(copy, (UnsignedInt)len); // owns copy
+
+	NetFileCommandMsg *fileMsg = newInstance(NetFileCommandMsg);
+	fileMsg->setPlayerID(m_localSlot);
+	const UnsignedShort commandID = GenerateNextCommandID();
+	fileMsg->setID(commandID);
+	AsciiString portable;
+	portable.format("%s%s", DESYNC_REPORT_PREFIX, leafName.str());
+	fileMsg->setPortableFilename(portable);
+	fileMsg->setFileData(chunk);
+	sendLocalCommand(fileMsg, playerMask);
+	fileMsg->detach();
+	return commandID;
+}
+
+// FORK @feature 10/10/2026 TRUE once that player sent a 100% progress message for the command.
+Bool ConnectionManager::isFileTransferAcked(Int slot, UnsignedShort commandID)
+{
+	if (slot < 0 || slot >= MAX_SLOTS || commandID == 0)
+		return FALSE;
+	FileProgressMap::const_iterator it = s_fileProgressMap[slot].find(commandID);
+	return it != s_fileProgressMap[slot].end() && it->second >= 100;
+}
+
+// FORK @feature 10/10/2026 Stores a received desync report through the desync guard and confirms it to the sender.
+void ConnectionManager::processDesyncReport(NetFileCommandMsg *msg)
+{
+	const UnsignedInt fromSlot = msg->getPlayerID();
+	const AsciiString portable = msg->getPortableFilename();
+	const AsciiString leaf = portable.str() + strlen(DESYNC_REPORT_PREFIX);
+	UnsignedByte *buf = msg->getFileData();
+	Int len = (Int)msg->getFileLength();
+	UnsignedByte *unpacked = nullptr;
+	if (buf != nullptr && CompressionManager::isDataCompressed(buf, len))
+	{
+		const Int unpackedLen = CompressionManager::getUncompressedSize(buf, len);
+		if (!IsDesyncReportSizeOk(unpackedLen))
+			return;
+		unpacked = NEW UnsignedByte[unpackedLen];
+		if (CompressionManager::decompressData(buf, len, unpacked, unpackedLen) != unpackedLen)
+		{
+			delete[] unpacked;
+			return;
+		}
+		buf = unpacked;
+		len = unpackedLen;
+	}
+	const Bool stored = (fromSlot < MAX_SLOTS) && DesyncGuard::onReportReceived((Int)fromSlot, leaf, buf, len);
+	delete[] unpacked;
+	if (!stored)
+		return;
+
+	// Confirm to the sender (same progress message as a map transfer).
+	const Int commandID = msg->getID();
+	s_fileProgressMap[m_localSlot][commandID] = 100;
+	NetFileProgressCommandMsg *progressMsg = newInstance(NetFileProgressCommandMsg);
+	progressMsg->setPlayerID(m_localSlot);
+	progressMsg->setID(0);
+	if (DoesCommandRequireACommandID(progressMsg->getNetCommandType()))
+		progressMsg->setID(GenerateNextCommandID());
+	progressMsg->setFileID(commandID);
+	progressMsg->setProgress(100);
+	sendLocalCommand(progressMsg, 0xff ^ (1 << m_localSlot));
+	progressMsg->detach();
 }
 
 

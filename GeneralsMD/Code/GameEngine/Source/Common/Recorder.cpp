@@ -41,6 +41,7 @@
 #include "GameClient/Shell.h"
 #include "GameClient/GameText.h"
 
+#include "GameNetwork/DesyncGuard.h"
 #include "GameNetwork/LANAPICallbacks.h"
 #include "GameNetwork/GameMessageParser.h"
 #include "GameNetwork/GameSpy/PeerDefs.h"
@@ -710,6 +711,13 @@ void RecorderClass::stopRecording() {
 	if (m_file != nullptr) {
 		m_file->close();
 		m_file = nullptr;
+
+		// FORK @feature 10/10/2026 A desynced game's replay goes into its desync folder too.
+		AsciiString replayPath = getReplayDir();
+		replayPath.concat(m_fileName);
+		if (!replayPath.endsWith(getReplayExtention()))
+			replayPath.concat(getReplayExtention());
+		DesyncGuard::onReplayClosed(replayPath);
 
 		if (m_archiveReplays)
 			archiveReplay(m_fileName);
