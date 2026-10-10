@@ -43,6 +43,8 @@ AsciiString GetStrFileFromMap( AsciiString path );
 AsciiString GetSoloINIFromMap( AsciiString path );
 AsciiString GetAssetUsageFromMap( AsciiString path );
 AsciiString GetReadmeFromMap( AsciiString path );
+UnsignedInt ComputeMapAuxCRC( AsciiString mapPath ); ///< FORK fingerprint of map.ini, map.str and solo.ini of a map
 
 // The meat of file (map) transfers
 Bool DoAnyMapTransfers(GameInfo *game);
+void PrepareLocalMapFolderForTransfer( GameInfo *game ); ///< FORK set aside local map folder files the host lacks

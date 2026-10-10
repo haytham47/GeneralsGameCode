@@ -29,6 +29,7 @@
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
 #include "Common/CRCDebug.h"
+#include "Common/crc.h"
 #include "Common/file.h"
 #include "Common/FileSystem.h"
 #include "Common/GameState.h"
@@ -62,6 +63,7 @@ void GameSlot::reset()
 	m_state = SLOT_CLOSED; // decent default
 	m_isAccepted = false;
 	m_hasMap = true;
+	m_hasMapFile = true; // FORK @feature 10/10/2026
 	m_color = -1;
 	m_startPos = -1;
 	m_playerTemplate = -1;
@@ -222,6 +224,7 @@ void GameSlot::setState( SlotState state, UnicodeString name, UnsignedInt IP )
 		m_state = state;
 		m_isAccepted = true;
 		m_hasMap = true;
+		m_hasMapFile = true; // FORK @feature 10/10/2026
 		switch(state)
 		{
 		case SLOT_OPEN:
@@ -316,6 +319,7 @@ void GameInfo::reset()
 										// set properly in the constructor of LANGameInfo which uses this as a base class.
 	m_mapCRC = 0;
 	m_mapSize = 0;
+	m_mapAuxCRC = 0; // FORK @feature 10/10/2026
   m_superweaponRestriction = 0;
   m_loadCap = 0; // FORK @feature 08/10/2026 build cap off by default
   m_superweaponsDisabled = FALSE; // FORK @feature 09/10/2026 superweapons fire normally by default
@@ -601,10 +605,14 @@ void GameInfo::setMap( AsciiString mapName )
 				fp->close();
 				fp = nullptr;
 			}
+
+			// FORK @feature 10/10/2026 Clients compare their map.ini/map.str/solo.ini against this.
+			m_mapAuxCRC = ComputeMapAuxCRC(m_mapName);
 		}
 		else
 		{
 			m_mapMask = 0;
+			m_mapAuxCRC = 0; // FORK @feature 10/10/2026
 		}
 	}
 }
@@ -640,16 +648,19 @@ void GameInfo::setMapCRC( UnsignedInt mapCRC )
 			}
 			*/
 			getSlot(getLocalSlotNum())->setMapAvailability(false);
+			getSlot(getLocalSlotNum())->setHasMapFile(false); // FORK @feature 10/10/2026
 		}
 		else if (m_mapCRC != it->second.m_CRC)
 		{
 			DEBUG_LOG(("GameInfo::setMapCRC - map CRC's do not match (%X/%X).", m_mapCRC, it->second.m_CRC));
 			getSlot(getLocalSlotNum())->setMapAvailability(false);
+			getSlot(getLocalSlotNum())->setHasMapFile(false); // FORK @feature 10/10/2026
 		}
 		else
 		{
 			//DEBUG_LOG(("GameInfo::setMapCRC - map CRC's match."));
 			getSlot(getLocalSlotNum())->setMapAvailability(true);
+			getSlot(getLocalSlotNum())->setHasMapFile(true); // FORK @feature 10/10/2026
 		}
 	}
 }
@@ -671,17 +682,34 @@ void GameInfo::setMapSize( UnsignedInt mapSize )
 		{
 			DEBUG_LOG(("GameInfo::setMapSize - could not find map file."));
 			getSlot(getLocalSlotNum())->setMapAvailability(false);
+			getSlot(getLocalSlotNum())->setHasMapFile(false); // FORK @feature 10/10/2026
 		}
 		else if (m_mapCRC != it->second.m_CRC)
 		{
 			DEBUG_LOG(("GameInfo::setMapSize - map CRC's do not match."));
 			getSlot(getLocalSlotNum())->setMapAvailability(false);
+			getSlot(getLocalSlotNum())->setHasMapFile(false); // FORK @feature 10/10/2026
 		}
 		else
 		{
 			//DEBUG_LOG(("GameInfo::setMapSize - map CRC's match."));
 			getSlot(getLocalSlotNum())->setMapAvailability(true);
+			getSlot(getLocalSlotNum())->setHasMapFile(true); // FORK @feature 10/10/2026
 		}
+	}
+}
+
+// FORK @feature 10/10/2026 A client whose map folder files differ from the host's reports the map as missing, so the
+// host re-sends the files at game start (the .map itself is only re-sent when hasMapFile() is false).
+void GameInfo::setMapAuxCRC( UnsignedInt mapAuxCRC )
+{
+	m_mapAuxCRC = mapAuxCRC;
+	if (!TheMapCache || mapAuxCRC == 0 || !m_inGame || getLocalSlotNum() < 0 || amIHost())
+		return;
+	if (ComputeMapAuxCRC(m_mapName) != mapAuxCRC)
+	{
+		DEBUG_LOG(("GameInfo::setMapAuxCRC - map folder files differ from the host's"));
+		getSlot(getLocalSlotNum())->setMapAvailability(false);
 	}
 }
 
@@ -1014,6 +1042,13 @@ static AsciiString buildGameInfoAsciiString(const GameInfo& game, const AsciiStr
 		rateString.format("GR=%u;", game.getGeneralPointsRate());
 		optionsString.concat(rateString);
 	}
+	// FORK @feature 10/10/2026 Fingerprint of the host's map folder files (map.ini, map.str, solo.ini).
+	if (game.getMapAuxCRC() != 0)
+	{
+		AsciiString auxString;
+		auxString.format("MA=%X;", game.getMapAuxCRC());
+		optionsString.concat(auxString);
+	}
 #endif
 
 	//add player info for each slot
@@ -1153,6 +1188,7 @@ Bool ParseAsciiStringToGameInfo(GameInfo *game, AsciiString options)
 	UnsignedInt loadCap = 0; // FORK build cap, off unless the options say otherwise
 	Bool superweaponsDisabled = FALSE; // FORK @feature 09/10/2026 superweapons fire unless the options say otherwise
 	UnsignedInt generalPointsRate = 100; // FORK @feature 09/10/2026 normal general's points rate unless the options say otherwise
+	UnsignedInt mapAuxCRC = 0; // FORK @feature 10/10/2026
 
 	//DEBUG_LOG(("Saw options of %s", options.str()));
 	DEBUG_LOG(("ParseAsciiStringToGameInfo - parsing [%s]", options.str()));
@@ -1273,6 +1309,11 @@ Bool ParseAsciiStringToGameInfo(GameInfo *game, AsciiString options)
       generalPointsRate = (UnsignedInt)strtoul( val.str(), nullptr, 10 );
       if (generalPointsRate < 1 || generalPointsRate > 100)
         generalPointsRate = 100;
+    }
+    else if (key.compare("MA") == 0 )
+    {
+      // FORK @feature 10/10/2026 Fingerprint of the host's map folder files.
+      sscanf( val.str(), "%X", &mapAuxCRC );
     }
     else if (key.compare("O") == 0 )
     {
@@ -1641,6 +1682,7 @@ Bool ParseAsciiStringToGameInfo(GameInfo *game, AsciiString options)
 		game->setMapCRC(mapCRC);
 		game->setMapSize(mapSize);
 		game->setMapContentsMask(mapContentsMask);
+		game->setMapAuxCRC(mapAuxCRC); // FORK @feature 10/10/2026 after setMapCRC, it can only lower map availability
 		game->setSeed(seed);
 		game->setCRCInterval(crc);
 		game->setUseStats(useStats);
@@ -1787,3 +1829,39 @@ void SkirmishGameInfo::loadPostProcess()
 {
 }
 
+
+// ------------------------------------------------------------------------------------------------
+// FORK @feature 10/10/2026 CRC of the parsed lobby options that feed the game logic, part of the data fingerprint
+// every player sends with its logic CRC. Network details (IPs, ports, accept flags) are left out.
+// ------------------------------------------------------------------------------------------------
+UnsignedInt ComputeGameOptionsCRC( const GameInfo *game )
+{
+	CRC crc;
+	crc.clear();
+	if (game == nullptr)
+		return 0;
+	Int values[10];
+	values[0] = game->getSeed();
+	values[1] = game->getCRCInterval();
+	values[2] = (Int)game->getSuperweaponRestriction();
+	values[3] = (Int)game->getStartingCash().countMoney();
+	values[4] = (Int)game->getLoadCap();
+	values[5] = game->getSuperweaponsDisabled() ? 1 : 0;
+	values[6] = (Int)game->getGeneralPointsRate();
+	values[7] = game->oldFactionsOnly() ? 1 : 0;
+	values[8] = (Int)game->getMapCRC();
+	values[9] = (Int)game->getMapAuxCRC();
+	crc.computeCRC(values, sizeof(values));
+	for (Int i = 0; i < MAX_SLOTS; ++i)
+	{
+		const GameSlot *slot = game->getConstSlot(i);
+		Int slotValues[5];
+		slotValues[0] = slot ? (Int)slot->getState() : -1;
+		slotValues[1] = slot ? slot->getPlayerTemplate() : -1;
+		slotValues[2] = slot ? slot->getColor() : -1;
+		slotValues[3] = slot ? slot->getStartPos() : -1;
+		slotValues[4] = slot ? slot->getTeamNumber() : -1;
+		crc.computeCRC(slotValues, sizeof(slotValues));
+	}
+	return crc.get();
+}

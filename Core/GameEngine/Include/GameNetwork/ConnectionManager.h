@@ -83,6 +83,8 @@ public:
 	void sendFile(AsciiString path, UnsignedByte playerMask, UnsignedShort commandID);
 	UnsignedShort sendFileAnnounce(AsciiString path, UnsignedByte playerMask);
 	Int getFileTransferProgress(Int playerID, AsciiString path);
+	UnsignedShort sendDesyncReport(const AsciiString &leafName, const UnsignedByte *data, Int len, UnsignedByte playerMask); ///< FORK
+	Bool isFileTransferAcked(Int slot, UnsignedShort commandID); ///< FORK
 	Bool areAllQueuesEmpty();
 
 	UnsignedInt getLocalPlayerID();
@@ -166,6 +168,7 @@ private:
 	void processFrameResendRequest(NetFrameResendRequestCommandMsg *msg);
 
 	void processFile(NetFileCommandMsg *ref);
+	void processDesyncReport(NetFileCommandMsg *msg); ///< FORK
 	void processFileAnnounce(NetFileAnnounceCommandMsg *ref);
 	void processFileProgress(NetFileProgressCommandMsg *ref);
 

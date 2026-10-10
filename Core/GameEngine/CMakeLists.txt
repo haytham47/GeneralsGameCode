@@ -518,9 +518,12 @@ set(GAMEENGINE_SRC
 #    Include/GameLogic/WeaponStatus.h
     Include/GameNetwork/Connection.h
     Include/GameNetwork/ConnectionManager.h
+    Include/GameNetwork/DesyncClassifier.h
+    Include/GameNetwork/DesyncGuard.h
     Include/GameNetwork/DisconnectManager.h
     Include/GameNetwork/DownloadManager.h
     Include/GameNetwork/FileTransfer.h
+    Include/GameNetwork/MapFingerprint.h
     Include/GameNetwork/FirewallHelper.h
     Include/GameNetwork/FrameData.h
     Include/GameNetwork/FrameDataManager.h
@@ -1126,6 +1129,7 @@ set(GAMEENGINE_SRC
     Source/GameLogic/System/RankInfo.cpp
     Source/GameNetwork/Connection.cpp
     Source/GameNetwork/ConnectionManager.cpp
+    Source/GameNetwork/DesyncGuard.cpp
     Source/GameNetwork/DisconnectManager.cpp
     Source/GameNetwork/DownloadManager.cpp
     Source/GameNetwork/FileTransfer.cpp

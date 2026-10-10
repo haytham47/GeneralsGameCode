@@ -66,6 +66,8 @@ public:
 
 	void setMapAvailability( Bool hasMap );						///< Set whether the slot has the map
 	Bool hasMap() const { return m_hasMap; }		///< Non-human slots always have the map
+	void setHasMapFile( Bool hasMapFile ) { m_hasMapFile = hasMapFile; } ///< FORK the .map itself matches the host's
+	Bool hasMapFile() const { return m_hasMapFile; }                    ///< FORK (map folder files may still differ)
 
 	void setState( SlotState state,
 		UnicodeString name = UnicodeString::TheEmptyString,
@@ -130,6 +132,7 @@ protected:
 	SlotState m_state;
 	Bool m_isAccepted;
 	Bool m_hasMap;
+	Bool m_hasMapFile; ///< FORK
 	Bool m_isMuted;
 	Bool m_hasSavedOriginalSetup;
 	Int m_color;																			///< color, or -1 for random
@@ -187,6 +190,8 @@ public:
 	void setMapCRC( UnsignedInt mapCRC );							///< Set the map CRC
 	void setMapSize( UnsignedInt mapSize );						///< Set the map size
 	void setMapContentsMask( Int mask );							///< Set the map contents mask (1=map,2=preview,4=map.ini)
+	void setMapAuxCRC( UnsignedInt mapAuxCRC );                  ///< FORK fingerprint of the host's map.ini/map.str/solo.ini
+	UnsignedInt getMapAuxCRC() const { return m_mapAuxCRC; }      ///< FORK
 	inline AsciiString getMap() const;								///< Get the game map
 	inline UnsignedInt getMapCRC() const;							///< Get the map CRC
 	inline UnsignedInt getMapSize() const;						///< Get the map size
@@ -254,6 +259,7 @@ protected:
 	UnsignedInt m_mapCRC;
 	UnsignedInt m_mapSize;
 	Int m_mapMask;
+	UnsignedInt m_mapAuxCRC; ///< FORK
 	Int m_seed;
 	Int m_useStats;
   Money         m_startingCash;
@@ -286,6 +292,7 @@ void        GameInfo::setOldFactionsOnly( Bool oldFactionsOnly ) { m_oldFactions
 
 AsciiString GameInfoToAsciiString( const GameInfo *game );
 Bool ParseAsciiStringToGameInfo( GameInfo *game, AsciiString options );
+UnsignedInt ComputeGameOptionsCRC( const GameInfo *game ); ///< FORK logic-relevant lobby options and slots
 
 
 /**

@@ -35,6 +35,7 @@
 #include "GameClient/ClientInstance.h"
 #include "GameClient/TerrainVisual.h" // for TERRAIN_LOD_MIN definition
 #include "GameClient/GameText.h"
+#include "GameNetwork/DesyncGuard.h"
 #include "GameNetwork/NetworkDefs.h"
 
 
@@ -884,6 +885,21 @@ Int parseSync(char *args[], int)
 	return 1;
 }
 
+// FORK @feature 10/10/2026 Test hook: on the PC in that slot, add 1 general's point to the local player at that frame.
+Int parseForceDesyncAtFrame(char *args[], int argc)
+{
+	if (argc > 1)
+		DesyncGuard::s_forceDesyncFrame = atoi(args[1]);
+	return 2;
+}
+
+Int parseForceDesyncSlot(char *args[], int argc)
+{
+	if (argc > 1)
+		DesyncGuard::s_forceDesyncSlot = atoi(args[1]);
+	return 2;
+}
+
 Int parseNoShellMap(char *args[], int)
 {
 	TheWritableGlobalData->m_shellMapOn = FALSE;
@@ -1407,6 +1423,8 @@ static CommandLineParam paramsForEngineInit[] =
 	{ "-noshadowvolumes", parseNoShadows },
 	{ "-nofx", parseNoFX },
 	{ "-ignoresync", parseSync },
+	{ "-forceDesyncAtFrame", parseForceDesyncAtFrame }, // FORK @feature 10/10/2026
+	{ "-forceDesyncSlot", parseForceDesyncSlot }, // FORK @feature 10/10/2026
 	{ "-shellmap", parseShellMap },
 	{ "-winCursors", parseWinCursors },
 	{ "-constantDebug", parseConstantDebug },

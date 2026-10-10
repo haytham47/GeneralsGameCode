@@ -74,6 +74,8 @@ public:
 	virtual void sendFile(AsciiString path, UnsignedByte playerMask, UnsignedShort commandID) = 0;
 	virtual UnsignedShort sendFileAnnounce(AsciiString path, UnsignedByte playerMask) = 0;
 	virtual Int getFileTransferProgress(Int playerID, AsciiString path) = 0;
+	virtual UnsignedShort sendDesyncReport(const AsciiString &leafName, const UnsignedByte *data, Int len, UnsignedByte playerMask) = 0; ///< FORK desync report to the host
+	virtual Bool isFileTransferAcked(Int slot, UnsignedShort commandID) = 0; ///< FORK has that player confirmed the file
 	virtual Bool areAllQueuesEmpty() = 0;
 
 	virtual void quitGame() = 0;																			///< Quit the game right now.

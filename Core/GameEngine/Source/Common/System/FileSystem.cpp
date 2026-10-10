@@ -281,6 +281,19 @@ Bool FileSystem::doesFileExist(const Char *filename, FileInstance instance) cons
 }
 
 //============================================================================
+// FileSystem::clearFileExistenceCache
+// FORK @bugfix 10/10/2026 A file renamed outside the file system (desync guard sets aside map folder files) must not
+// keep its cached "exists" answer, or loading it later fails.
+//============================================================================
+void FileSystem::clearFileExistenceCache()
+{
+#if ENABLE_FILESYSTEM_EXISTENCE_CACHE
+	FastCriticalSectionClass::LockClass lock(m_fileExistMutex);
+	m_fileExist.clear();
+#endif
+}
+
+//============================================================================
 // FileSystem::getFileListInDirectory
 //============================================================================
 void FileSystem::getFileListInDirectory(const AsciiString& directory, const AsciiString& searchName, FilenameList &filenameList, Bool searchSubdirectories) const

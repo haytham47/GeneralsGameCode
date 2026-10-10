@@ -109,6 +109,7 @@
 #include "GameNetwork/GameSpy/BuddyThread.h"
 #include "GameNetwork/GameSpy/PeerDefs.h"
 #include "GameNetwork/GameSpy/ThreadUtils.h"
+#include "GameNetwork/DesyncGuard.h"
 #include "GameNetwork/LANAPICallbacks.h"
 #include "GameNetwork/NetworkInterface.h"
 #include "GameNetwork/GameSpy/PersistentStorageThread.h"
@@ -368,10 +369,59 @@ GameLogic::~GameLogic()
 // ------------------------------------------------------------------------------------------------
 /** (re)initialize the instance. */
 // ------------------------------------------------------------------------------------------------
+// FORK @feature 10/10/2026 Players and objects of the logic state for a desync report (desync guard).
+// ------------------------------------------------------------------------------------------------
+static UnsignedInt desyncRealBits( Real value )
+{
+	UnsignedInt bits;
+	memcpy( &bits, &value, sizeof(bits) );
+	return bits;
+}
+
+static void writeDesyncStateDump( FILE *fp, const AsciiString &deepDumpPath )
+{
+	fprintf( fp, "[players]\r\n" );
+	for( Int i = 0; i < ThePlayerList->getPlayerCount(); ++i )
+	{
+		Player *player = ThePlayerList->getNthPlayer( i );
+		if( player == nullptr )
+			continue;
+		XferCRC playerCRC;
+		playerCRC.open( "desyncPlayer" );
+		playerCRC.xferSnapshot( player );
+		playerCRC.close();
+		AsciiString name;
+		name.translate( player->getPlayerDisplayName() );
+		fprintf( fp, "P idx=%d name=%s money=%u skill=%d rank=%d sciencepts=%d crc=%08X\r\n", i, name.str(),
+			player->getMoney()->countMoney(), player->getSkillPoints(), player->getRankLevel(),
+			player->getSciencePurchasePoints(), playerCRC.getCRC() );
+	}
+	fprintf( fp, "[objects]\r\n" );
+	for( Object *obj = TheGameLogic->getFirstObject(); obj; obj = obj->getNextObject() )
+	{
+		XferCRC objectCRC;
+		objectCRC.open( "desyncObject" );
+		objectCRC.xferSnapshot( obj );
+		objectCRC.close();
+		const Coord3D *pos = obj->getPosition();
+		BodyModuleInterface *body = obj->getBodyModule();
+		const Player *owner = obj->getControllingPlayer();
+		fprintf( fp, "O id=%u tmpl=%s owner=%d x=%08X y=%08X z=%08X hp=%08X crc=%08X\r\n", (UnsignedInt)obj->getID(),
+			obj->getTemplate()->getName().str(), owner ? owner->getPlayerIndex() : -1, desyncRealBits( pos->x ),
+			desyncRealBits( pos->y ), desyncRealBits( pos->z ), desyncRealBits( body ? body->getHealth() : 0.0f ),
+			objectCRC.getCRC() );
+	}
+	if( deepDumpPath.isNotEmpty() )
+		TheGameLogic->getCRC( CRC_RECALC, deepDumpPath );
+}
+
+// ------------------------------------------------------------------------------------------------
 void GameLogic::init()
 {
 
 	setFPMode();
+
+	DesyncGuard::setStateDumpFunc( writeDesyncStateDump ); // FORK @feature 10/10/2026
 
 	// create the partition manager
 	ThePartitionManager = NEW PartitionManager;
@@ -1705,6 +1755,11 @@ void GameLogic::tryStartNewGame( Bool loadingSaveGame )
 	// FORK @feature 09/10/2026 Players and their (random-resolved) factions exist now: weight the build cap per faction.
 	computePlayerLoadCaps();
 
+	// FORK @feature 10/10/2026 Fingerprint of the data this PC loaded, sent with every logic CRC.
+	DesyncGuard::reset();
+	if ( !loadingSaveGame && TheGameInfo )
+		DesyncGuard::setLocalFingerprint( ComputeLocalDataFingerprint( TheGameInfo ) );
+
 	// update the loadscreen
 	updateLoadProgress(LOAD_PROGRESS_POST_PLAYER_LIST_RESET);
 
@@ -2791,6 +2846,8 @@ void GameLogic::processCommandList( CommandList *list )
 		// FORK @feature 08/10/2026 Logs processed commands in -bench mode to locate run divergence.
 		if (Bench::s_active)
 			Bench::logMessage(m_frame, (Int)msg->getType(), msg->getPlayerIndex());
+		// FORK @feature 10/10/2026 The last commands go into a desync report.
+		DesyncGuard::noteCommand(m_frame, (Int)msg->getType(), msg->getPlayerIndex());
 		logicMessageDispatcher( msg, nullptr );
 	}
 
@@ -3909,6 +3966,18 @@ void GameLogic::update()
 		TheTerrainLogic->UPDATE();
 	}
 
+#if defined(RTS_DEBUG)
+	// FORK @feature 10/10/2026 Test hook (-forceDesyncAtFrame/-forceDesyncSlot): desync this PC on purpose.
+	if ( DesyncGuard::s_forceDesyncFrame > 0 && m_frame == (UnsignedInt)DesyncGuard::s_forceDesyncFrame
+		&& TheGameInfo && TheGameInfo->getLocalSlotNum() == DesyncGuard::s_forceDesyncSlot )
+	{
+		// Skill points are part of Player::crc (money is not), so the next logic CRC differs at once.
+		Player *localPlayer = ThePlayerList->getLocalPlayer();
+		if ( localPlayer )
+			localPlayer->addSkillPoints( 1 );
+	}
+#endif
+
 	// force CRC calculation, so we can keep a cache of the last N CRCs.  We do this right where the recorder
 	// would be getting the CRC anyway, so replays can get the CRCs from the exact instant in time as the original.
 	Bool isMPGameOrReplay = (TheRecorder && TheRecorder->isMultiplayer() && getGameMode() != GAME_SHELL && getGameMode() != GAME_NONE);
@@ -3929,6 +3998,12 @@ void GameLogic::update()
 		GameMessage *msg = newInstance(GameMessage)(GameMessage::MSG_LOGIC_CRC);
 		msg->appendIntegerArgument(m_CRC);
 		msg->appendBooleanArgument(isPlayback);
+		// FORK @feature 10/10/2026 Section CRCs and the data fingerprint ride along for the desync report.
+		UnsignedInt sectionCRCs[DESYNC_SECTION_COUNT];
+		computeSectionCRCs( sectionCRCs );
+		for( Int section = 0; section < DESYNC_SECTION_COUNT; ++section )
+			msg->appendIntegerArgument( sectionCRCs[section] );
+		msg->appendIntegerArgument( DesyncGuard::getLocalFingerprint() );
 
 		// TheSuperHackers @info helmutbuhler 13/04/2025
 		// During replay simulation, we bypass TheMessageStream and instead put the CRC message
@@ -4424,6 +4499,33 @@ UnsignedInt GameLogic::getCRC( Int mode, AsciiString deepCRCFileName )
 		CRCGEN_LOG(("CRC for frame %d is 0x%8.8X", m_frame, theCRC));
 	}
 	return theCRC;
+}
+
+// ------------------------------------------------------------------------------------------------
+// FORK @feature 10/10/2026 CRC of each part of the logic state that getCRC() hashes, so a mismatch report can say
+// which part diverged. Separate passes; never feeds m_CRC.
+// ------------------------------------------------------------------------------------------------
+static UnsignedInt snapshotSectionCRC( Snapshot *snapshot )
+{
+	XferCRC xferCRC;
+	xferCRC.open("sectionCRC");
+	xferCRC.xferSnapshot(snapshot);
+	xferCRC.close();
+	return xferCRC.getCRC();
+}
+
+void GameLogic::computeSectionCRCs( UnsignedInt *out )
+{
+	XferCRC objectsCRC;
+	objectsCRC.open("sectionCRC");
+	for( Object *obj = m_objList; obj; obj = obj->getNextObject() )
+		objectsCRC.xferSnapshot( obj );
+	objectsCRC.close();
+	out[DESYNC_SECTION_OBJECTS] = objectsCRC.getCRC();
+	out[DESYNC_SECTION_RANDOM] = GetGameLogicRandomSeedCRC();
+	out[DESYNC_SECTION_PARTITION] = snapshotSectionCRC( ThePartitionManager );
+	out[DESYNC_SECTION_PLAYERS] = snapshotSectionCRC( ThePlayerList );
+	out[DESYNC_SECTION_AI] = snapshotSectionCRC( TheAI );
 }
 
 // ------------------------------------------------------------------------------------------------

@@ -259,6 +259,7 @@ Bool ParseGameOptionsString(LANGameInfo *game, AsciiString options)
 	AsciiString oldMap = game->getMap();
 	UnsignedInt oldMapCRC, newMapCRC;
 	oldMapCRC = game->getMapCRC();
+	const UnsignedInt oldMapAuxCRC = game->getMapAuxCRC(); // FORK @feature 10/10/2026
 
 	std::map<UnicodeString, UnicodeString> oldLogins, oldMachines;
 	std::map<UnicodeString, UnicodeString>::iterator mapIt;
@@ -283,7 +284,8 @@ Bool ParseGameOptionsString(LANGameInfo *game, AsciiString options)
 //			Int hasMap = game->getSlot(newLocalSlotNum)->hasMap();
 			newMapCRC = game->getMapCRC();
 			//DEBUG_LOG(("wasInGame:%d isInGame:%d hadMap:%d hasMap:%d oldMap:%s newMap:%s", wasInGame, isInGame, hadMap, hasMap, oldMap.str(), game->getMap().str()));
-			if ( (oldMapCRC ^ newMapCRC)/*(hasMap ^ hadMap)*/ || (!wasInGame && isInGame) )
+			// FORK @feature 10/10/2026 A changed map folder fingerprint also re-reports map availability.
+			if ( (oldMapCRC ^ newMapCRC)/*(hasMap ^ hadMap)*/ || (oldMapAuxCRC ^ game->getMapAuxCRC()) || (!wasInGame && isInGame) )
 			{
 				// it changed.  send it
 				TheLAN->RequestHasMap();

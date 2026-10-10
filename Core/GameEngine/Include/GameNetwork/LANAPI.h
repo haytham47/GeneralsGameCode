@@ -248,6 +248,7 @@ struct LANMessage
 			WideChar gameName[g_lanGameNameLength+1];
 			UnsignedInt mapCRC;	// to make sure we're talking about the same map
 			Bool hasMap;
+			Bool hasMapFile; // FORK @feature 10/10/2026 the .map matches; only map folder files differ
 		} MapStatus;
 
 		// Chat is sent with CHAT

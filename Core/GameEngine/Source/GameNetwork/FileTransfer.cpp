@@ -30,9 +30,13 @@
 
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
+#include "Common/file.h"
+#include "Common/FileSystem.h"
+#include "Common/LocalFileSystem.h"
 #include "GameClient/LoadScreen.h"
 #include "GameClient/Shell.h"
 #include "GameNetwork/FileTransfer.h"
+#include "GameNetwork/MapFingerprint.h"
 #include "GameNetwork/networkutil.h"
 
 //-------------------------------------------------------------------------------------
@@ -82,7 +86,8 @@ static Bool doFileTransfer( AsciiString filename, MapTransferLoadScreen *ls, Int
 			fileTransferPercent = 100;
 			for (i=1; i<MAX_SLOTS; ++i)
 			{
-				if (TheGameInfo->getConstSlot(i)->isHuman() && !TheGameInfo->getConstSlot(i)->hasMap())
+				// FORK @feature 10/10/2026 Wait only for the players this file is sent to (the .map may go to fewer).
+				if (mask & (1<<i))
 				{
 					Int slotTransferPercent = TheNetwork->getFileTransferProgress(i, filename);
 					fileTransferPercent = min(fileTransferPercent, slotTransferPercent);
@@ -238,6 +243,61 @@ AsciiString GetReadmeFromMap( AsciiString path )
 	return out;
 }
 
+// FORK @feature 10/10/2026 Fingerprint of the map folder files that feed the game logic (map.ini, map.str,
+// solo.ini). Players whose fingerprint differs from the host's get the host's files before the game starts.
+UnsignedInt ComputeMapAuxCRC( AsciiString mapPath )
+{
+	CRC crc;
+	crc.clear();
+	const AsciiString paths[3] = { GetINIFromMap(mapPath), GetStrFileFromMap(mapPath), GetSoloINIFromMap(mapPath) };
+	const char *const tags[3] = { "map.ini", "map.str", "solo.ini" };
+	for (Int i = 0; i < 3; ++i)
+	{
+		File *fp = TheFileSystem->openFile(paths[i].str(), File::READ | File::BINARY);
+		if (fp == nullptr)
+		{
+			MapFingerprintAddFile(crc, tags[i], nullptr, 0, FALSE);
+			continue;
+		}
+		const Int len = fp->size();
+		char *buf = fp->readEntireAndClose();
+		MapFingerprintAddFile(crc, tags[i], buf, len, TRUE);
+		delete[] buf;
+	}
+	return crc.get();
+}
+
+// FORK @feature 10/10/2026 Before the host re-sends its map folder files, a loose map.ini/map.str/solo.ini that the
+// host does not have is renamed to *.desyncguard-bak, so this PC loads exactly the host's set. Files inside a .big
+// cannot be moved; the check after the transfer catches those.
+void PrepareLocalMapFolderForTransfer( GameInfo *game )
+{
+	if (game == nullptr || game->amIHost())
+		return;
+	const GameSlot *localSlot = game->getConstSlot(game->getLocalSlotNum());
+	if (localSlot == nullptr || localSlot->hasMap())
+		return;
+
+	const Int hostMask = game->getMapContentsMask();
+	const Int bits[3] = { 4, 8, 16 };
+	const AsciiString paths[3] = { GetINIFromMap(game->getMap()), GetStrFileFromMap(game->getMap()), GetSoloINIFromMap(game->getMap()) };
+	for (Int i = 0; i < 3; ++i)
+	{
+		if ((hostMask & bits[i]) != 0 || !TheLocalFileSystem->doesFileExist(paths[i].str()))
+			continue;
+		AsciiString backup = paths[i];
+		backup.concat(".desyncguard-bak");
+		if (MoveFileEx(paths[i].str(), backup.str(), MOVEFILE_REPLACE_EXISTING))
+		{
+			DEBUG_LOG(("PrepareLocalMapFolderForTransfer - set aside %s", paths[i].str()));
+			// The file system caches "exists"; loading the map would still try to open the old name.
+			TheFileSystem->clearFileExistenceCache();
+		}
+		else
+			DEBUG_LOG(("PrepareLocalMapFolderForTransfer - could not set aside %s", paths[i].str()));
+	}
+}
+
 //-------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------
 
@@ -245,6 +305,7 @@ Bool DoAnyMapTransfers(GameInfo *game)
 {
 	TheGameInfo = game;
 	Int mask = 0;
+	Int mapFileMask = 0; // FORK @feature 10/10/2026 players whose .map differs (others only need the folder files)
 	Int i=0;
 	for (i=1; i<MAX_SLOTS; ++i)
 	{
@@ -252,6 +313,8 @@ Bool DoAnyMapTransfers(GameInfo *game)
 		{
 			DEBUG_LOG(("Adding player %d to transfer mask", i));
 			mask |= (1<<i);
+			if (!TheGameInfo->getConstSlot(i)->hasMapFile())
+				mapFileMask |= (1<<i);
 		}
 	}
 	if (!mask)
@@ -273,8 +336,8 @@ Bool DoAnyMapTransfers(GameInfo *game)
 		ok = doFileTransfer(GetAssetUsageFromMap(game->getMap()), ls, mask);
 	if (ok && TheGameInfo->getMapContentsMask() & 64)
 		ok = doFileTransfer(GetReadmeFromMap(game->getMap()), ls, mask);
-	if (ok)
-		ok = doFileTransfer(game->getMap(), ls, mask);
+	if (ok && mapFileMask)
+		ok = doFileTransfer(game->getMap(), ls, mapFileMask);
 	delete ls;
 	ls = nullptr;
 	if (!ok)

@@ -750,6 +750,7 @@ void LANAPI::RequestHasMap()
 	fillInLANMessage( &msg );
 	msg.messageType = LANMessage::MSG_MAP_AVAILABILITY;
 	msg.MapStatus.hasMap = m_currentGame->getSlot(m_currentGame->getLocalSlotNum())->hasMap();
+	msg.MapStatus.hasMapFile = m_currentGame->getSlot(m_currentGame->getLocalSlotNum())->hasMapFile(); // FORK @feature 10/10/2026
 	wcslcpy(msg.MapStatus.gameName, m_currentGame->getName().str(), ARRAY_SIZE(msg.MapStatus.gameName));
 	CRC mapNameCRC;
 //mapNameCRC.computeCRC(m_currentGame->getMap().str(), m_currentGame->getMap().getLength());

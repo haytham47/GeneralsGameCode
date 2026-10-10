@@ -275,6 +275,12 @@ UnsignedInt Connection::doSend() {
 						deleteInstance(msg);
 					}
 				}
+				else if (packet.getNumCommands() > 0) {
+					// FORK @bugfix 10/10/2026 A command that does not fit starts the next packet instead of being skipped.
+					// Skipping starved a full-size wrapper chunk queued behind a small command on every send, so an
+					// in-game file (desync report) only completed when the connection closed.
+					break;
+				}
 			}
 			msg = next;
 		}
