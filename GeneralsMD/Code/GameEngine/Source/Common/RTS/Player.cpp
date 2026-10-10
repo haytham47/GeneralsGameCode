@@ -4106,6 +4106,10 @@ void Player::crc( Xfer *xfer )
 
 	xfer->xferInt( &m_skillPoints );
 	xfer->xferInt( &m_sciencePurchasePoints );
+	// FORK @bugfix 10/10/2026 The general's points remainder is logic state: a difference must show in the CRC.
+	// Only games with a slower rate hash it, so games at the normal rate keep their exact CRC (and old replays).
+	if( TheGameLogic->getGeneralPointsRate() < 100 )
+		xfer->xferInt( &m_skillPointsRemainder );
 
 }
 
@@ -4120,13 +4124,14 @@ void Player::crc( Xfer *xfer )
 	* 6: Store m_unitsShouldHunt, set to true after the script "Tell player to hunt" is called.
 	* 7: added Preorder flag
 	* 8: Save m_disabledSciences & m_hiddenSciences. jba.
+	* 9: FORK save m_skillPointsRemainder (general's points rate).
 	*/
 // ------------------------------------------------------------------------------------------------
 void Player::xfer( Xfer *xfer )
 {
 
 	// version
-	const XferVersion currentVersion = 8;
+	const XferVersion currentVersion = 9;
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
 
@@ -4659,6 +4664,12 @@ void Player::xfer( Xfer *xfer )
 	}
 	else
 		m_unitsShouldHunt = FALSE;
+
+	// FORK @bugfix 10/10/2026 The general's points remainder survives save and load.
+	if( version >= 9 )
+		xfer->xferInt( &m_skillPointsRemainder );
+	else if( xfer->getXferMode() == XFER_LOAD )
+		m_skillPointsRemainder = 0;
 
 }
 
