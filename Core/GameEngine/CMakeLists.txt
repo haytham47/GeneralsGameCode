@@ -521,6 +521,7 @@ set(GAMEENGINE_SRC
     Include/GameNetwork/DisconnectManager.h
     Include/GameNetwork/DownloadManager.h
     Include/GameNetwork/FileTransfer.h
+    Include/GameNetwork/MapFingerprint.h
     Include/GameNetwork/FirewallHelper.h
     Include/GameNetwork/FrameData.h
     Include/GameNetwork/FrameDataManager.h
